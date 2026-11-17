@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mission">
+<meta name="theme-color" content="#0a0f24">
+<meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>Mission Morgenstart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Chakra+Petch:wght@500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one-screen mission console, single column, dark by design (early morning, space theme) */
+:root{
+  --space:#0a0f24; --panel:#141b38; --panel2:#1c2550; --line:#2c3770;
+  --text:#eef1ff; --muted:#9aa5d6; --cyan:#62e3ff; --orange:#ff8a3d; --gold:#ffd166;
+  --good:#5ff2a0; --warn:#ffb347; --bad:#ff5d6c;
+  --f-display:"Chakra Petch",system-ui,sans-serif;
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;-webkit-user-select:none;user-select:none}
+input,textarea{-webkit-user-select:text;user-select:text}
+.sync{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}.sync.ok{background:var(--good)}.sync.offline{background:var(--warn)}.sync.error{background:var(--bad)}
+.code{font-family:var(--f-mono);font-size:2.2rem;font-weight:700;letter-spacing:.12em;text-align:center;color:var(--gold);background:var(--space);border:2px dashed var(--line);border-radius:12px;padding:14px;-webkit-user-select:all;user-select:all}
+.banner{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;border-radius:12px;font-weight:700}
+html,body{height:100%}
+body{background:var(--space);color:var(--text);font-family:var(--f-body);font-size:17px;line-height:1.45;
+  background-image:radial-gradient(1px 1px at 12% 18%,#fff8 50%,transparent 51%),radial-gradient(1px 1px at 72% 9%,#fff6 50%,transparent 51%),
+  radial-gradient(1.5px 1.5px at 38% 62%,#fff5 50%,transparent 51%),radial-gradient(1px 1px at 88% 44%,#fff7 50%,transparent 51%),
+  radial-gradient(1px 1px at 22% 84%,#fff5 50%,transparent 51%),radial-gradient(1.5px 1.5px at 60% 30%,#fff4 50%,transparent 51%),
+  radial-gradient(1px 1px at 93% 78%,#fff6 50%,transparent 51%),radial-gradient(120% 60% at 50% 110%,#1d2a6b 0%,transparent 60%);
+  background-attachment:fixed;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-action:manipulation}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--cyan);outline-offset:2px}
+#app{max-width:520px;margin:0 auto;min-height:100%;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 28px;display:flex;flex-direction:column;gap:14px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:1.9rem;line-height:1.1}
+h2{font-size:1.35rem}
+h3{font-size:1.05rem}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.between{justify-content:space-between}
+.stack{display:flex;flex-direction:column;gap:10px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:12px 18px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);font-weight:700;font-size:1rem}
+.btn:active{transform:scale(.98)}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.btn-go{background:linear-gradient(180deg,#ff9d55,#ff6f1f);border-color:#ffb27a;color:#1a0d00;font-family:var(--f-display);font-size:1.25rem;letter-spacing:.04em;min-height:68px;box-shadow:0 6px 24px #ff6f1f55}
+.btn-cyan{background:linear-gradient(180deg,#7debff,#2fc3ea);border-color:#a7f2ff;color:#04202a}
+.btn-ghost{background:transparent}
+.btn-sm{min-height:40px;padding:8px 12px;font-size:.9rem}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.brand{font-family:var(--f-display);font-weight:700;font-size:1.05rem;letter-spacing:.08em;text-transform:uppercase}
+.brand b{color:var(--orange)}
+.iconbtn{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--panel);border:1px solid var(--line)}
+.iconbtn svg{width:22px;height:22px}
+.countdown{font-family:var(--f-mono);font-size:3.1rem;font-weight:700;line-height:1;letter-spacing:-.02em}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kv>div{background:var(--panel2);border-radius:10px;padding:10px 8px;text-align:center;min-width:0}
+.kv .v{font-family:var(--f-mono);font-size:1.25rem;font-weight:700}
+.kv .k{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.xpbar{height:10px;background:var(--panel2);border-radius:99px;overflow:hidden}
+.xpbar>i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--gold));border-radius:99px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:.8rem;font-weight:700;background:var(--panel2);border:1px solid var(--line)}
+.chip.good{color:var(--good);border-color:#2f7d58}.chip.warn{color:var(--warn);border-color:#7d5a2f}.chip.bad{color:var(--bad);border-color:#7d2f39}.chip.gold{color:var(--gold);border-color:#7d6a2f}
+.nav{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.nav .btn{flex-direction:column;gap:4px;font-size:.85rem;min-height:68px}
+.nav svg{width:24px;height:24px}
+/* stages */
+.stages{display:flex;gap:4px}
+.stages i{flex:1;height:8px;border-radius:4px;background:var(--panel2)}
+.stages i.done{background:var(--cyan)}
+.stages i.now{background:var(--orange);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.45}}
+.mc{font-family:var(--f-mono);font-size:.86rem;color:var(--cyan);background:#62e3ff12;border-left:3px solid var(--cyan);padding:10px 12px;border-radius:0 10px 10px 0}
+.ringwrap{position:relative;width:min(72vw,280px);aspect-ratio:1;max-width:100%;margin:6px auto}
+.ringwrap svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ringwrap .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.ringwrap .t{font-family:var(--f-mono);font-size:3.2rem;font-weight:700;line-height:1}
+.ghostline{display:flex;justify-content:space-between;font-size:.9rem}
+.tile{display:flex;align-items:center;gap:12px;padding:14px;border-radius:12px;background:var(--panel2);border:2px solid var(--line);text-align:left;width:100%;font-weight:700;font-size:1.05rem}
+.tile .box{width:30px;height:30px;border-radius:8px;border:2px solid var(--muted);display:grid;place-items:center;flex:none}
+.tile.on{border-color:var(--good)}.tile.on .box{background:var(--good);border-color:var(--good);color:#032}
+.tile small{display:block;font-weight:400;color:var(--muted);font-size:.82rem}
+.alarm{animation:alarmbg .6s infinite alternate}
+@keyframes alarmbg{from{background:#3a0b14}to{background:#7a1a12}}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+th{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:400}
+td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.faster{color:var(--good)}.slower{color:var(--warn)}
+.joke{font-style:italic;background:var(--panel2);border-radius:12px;padding:14px;border:1px dashed var(--line)}
+.joke .punch{font-style:normal;font-weight:700;color:var(--gold);margin-top:6px}
+.badge{display:flex;gap:10px;align-items:center;padding:10px;border-radius:12px;background:var(--panel2);border:1px solid var(--line)}
+.badge .medal{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,#fff3b0,var(--gold) 45%,#b07a10);color:#3a2600;font-family:var(--f-display);font-weight:700;flex:none}
+.badge.off{opacity:.38}.badge.off .medal{background:var(--panel);color:var(--muted);border:1px dashed var(--muted)}
+.reward{display:flex;gap:12px;align-items:center;justify-content:space-between}
+.reward .cost{font-family:var(--f-mono);font-weight:700;color:var(--gold)}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:.88rem;color:var(--muted)}
+input,select,textarea{font:inherit;color:var(--text);background:var(--space);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:46px;width:100%}
+textarea{min-height:90px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid2>*{min-width:0}
+.list{display:flex;flex-direction:column;gap:8px}
+.logitem{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;padding:12px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+.bars{display:flex;align-items:flex-end;gap:4px;height:90px;padding-top:6px}
+.bars i{flex:1;border-radius:4px 4px 0 0;background:var(--cyan);min-height:4px;position:relative}
+.bars i.late{background:var(--warn)}
+/* overlays */
+#modal{position:fixed;inset:0;background:#050817cc;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:50;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+#modal .box{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:14px;max-height:100%;overflow:auto}
+.pinpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pinpad button{min-height:58px;border-radius:12px;background:var(--panel2);font-family:var(--f-mono);font-size:1.4rem;font-weight:700}
+.pindots{display:flex;gap:12px;justify-content:center}
+.pindots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--muted)}
+.pindots i.on{background:var(--cyan);border-color:var(--cyan)}
+.shake{animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+#fx{position:fixed;inset:0;z-index:49;pointer-events:none}
+#win{position:fixed;inset:0;z-index:48;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;overflow:hidden;
+ padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+ background:radial-gradient(circle at 50% 45%,var(--wc2) 0%,transparent 62%),#0a0f24;--wc:var(--gold);--wc2:#ffd16666}
+#win.ghost{--wc:var(--cyan);--wc2:#62e3ff55}
+#win .rays{position:absolute;left:50%;top:45%;width:240vmax;height:240vmax;margin:-120vmax 0 0 -120vmax;background:repeating-conic-gradient(from 0deg,var(--wc2) 0 8deg,transparent 8deg 18deg);opacity:.5;animation:spin 9s linear infinite}
+#win>*:not(.rays){position:relative}
+#win .kicker{font-family:var(--f-mono);letter-spacing:.2em;text-transform:uppercase;color:var(--text);font-size:.85rem;animation:pop2 .4s .1s both}
+#win h1{font-size:clamp(2.3rem,12vw,3.8rem);color:var(--wc);text-shadow:0 0 28px var(--wc),0 0 70px #ff8a3d88;animation:slam .55s cubic-bezier(.2,1.6,.4,1) both;line-height:1}
+#win .big{font-family:var(--f-mono);font-size:clamp(3.2rem,18vw,5.5rem);font-weight:700;line-height:1;animation:pop2 .5s .35s both}
+#win .delta{font-size:1.2rem;font-weight:700;color:var(--good);animation:pop2 .5s .55s both}
+#win .xps{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;animation:pop2 .5s .8s both}
+#win .xps span{font-family:var(--f-mono);font-weight:700;font-size:1.3rem;color:#2a1d00;background:var(--gold);padding:6px 14px;border-radius:99px;box-shadow:0 0 24px #ffd16699}
+#win .tap{color:var(--muted);font-size:.85rem;margin-top:14px;animation:pulse 1.4s infinite}
+.flash{position:fixed;inset:0;z-index:47;background:#fff;pointer-events:none;animation:flashout .6s forwards}
+@keyframes flashout{from{opacity:.9}to{opacity:0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes slam{0%{transform:scale(3.2);opacity:0}100%{transform:scale(1);opacity:1}}
+.quake{animation:quake .5s}
+@keyframes quake{10%,90%{transform:translate(-2px,1px)}20%,80%{transform:translate(4px,-2px)}30%,50%,70%{transform:translate(-6px,3px)}40%,60%{transform:translate(6px,-3px)}}
+#launch{position:fixed;inset:0;z-index:45;background:var(--space)}
+#launch canvas{width:100%;height:100%;display:block}
+#launch .ct{position:absolute;left:0;right:0;top:18%;text-align:center;font-family:var(--f-display);font-size:5rem;font-weight:700;color:var(--gold);text-shadow:0 0 30px #ff8a3d}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--gold);color:#2a1d00;font-weight:700;padding:12px 18px;border-radius:99px;z-index:60;box-shadow:0 8px 30px #0008;max-width:calc(100% - 32px);text-align:center;animation:pop .3s}
+@keyframes pop{from{transform:translate(-50%,20px);opacity:0}}
+.pop{animation:pop2 .45s}
+@keyframes pop2{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08)}}
+.hero-done{text-align:center;padding:22px 16px;border-radius:18px;background:radial-gradient(120% 100% at 50% 0%,#ff8a3d33,transparent 70%),var(--panel);border:1px solid #ff8a3d66}
+.bigxp{font-family:var(--f-mono);font-size:3rem;font-weight:700;color:var(--gold)}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.wd{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:10px;font-size:.72rem;color:var(--muted)}
+.wd.today{background:var(--panel2);color:var(--text)}
+.wd .ice{color:var(--cyan);font-size:1.2rem;line-height:26px}.wd .miss{color:var(--muted);font-size:1.4rem;line-height:26px}
+.streak-hero{display:flex;align-items:center;justify-content:center;gap:10px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal" hidden><div class="box" id="modalbox"></div></div>
+<canvas id="fx"></canvas>
+<div id="win" hidden></div>
+<div id="launch" hidden><canvas id="lc"></canvas><div class="ct" id="lct"></div></div>
+
+<script src="vendor/firebase-app-compat.js"></script>
+<script src="vendor/firebase-auth-compat.js"></script>
+<script src="vendor/firebase-firestore-compat.js"></script>
+<script>
+"use strict";
+/* ============ Inhalte ============ */
+const JOKES=[
+["Warum können Seeräuber keinen Kreis berechnen?","Weil sie Pi raten."],
+["Ein Neutron geht in eine Bar und fragt: Was kostet ein Saft?","Der Barkeeper: Für dich? Keine Ladung!"],
+["Treffen sich zwei Atome. Sagt das eine: Ich hab ein Elektron verloren!","Das andere: Bist du sicher? – Ja, ich bin positiv!"],
+["Was ist das Lieblingsessen von Physikern?","Quark."],
+["Was steht auf dem Grabstein eines Mathematikers?","Damit hat er nicht gerechnet."],
+["Was macht ein Mathematiker im Garten?","Wurzeln ziehen."],
+["Was sagt die Null zur Acht?","Schicker Gürtel!"],
+["Warum gehen Ameisen nicht in die Kirche?","Weil sie in Sekten sind."],
+["Wie nennt man ein Schaf ohne Beine?","Eine Wolke."],
+["Was macht ein Pirat am Computer?","Er drückt die Enter-Taste."],
+["Warum hatte der Computer Hunger?","Er hatte seit Stunden nur ein paar Bytes."],
+["Was macht ein Buch, wenn ihm kalt ist?","Es zieht sich einen Schutzumschlag an."],
+["Was ist orange und wandert durch den Wald?","Eine Wanderine."],
+["Wie heißt ein Spanier ohne Auto?","Carlos."],
+["Was ist ein Keks unter einem Baum?","Ein schattiges Plätzchen."],
+["Was ist grün und klopft an die Tür?","Ein Klopfsalat."],
+["Was liegt am Strand und spricht undeutlich?","Eine Nuschel."],
+["Wann hat der Mond keinen Hunger mehr?","Wenn er voll ist."],
+["Welche Tasse benutzen Außerirdische?","Eine fliegende Untertasse."],
+["Warum sind Raketen nie gelangweilt?","Sie haben immer genug Schub."],
+["Was ist gelb und kann nicht schwimmen?","Ein Bagger. Er hat nur einen Arm."],
+["Warum können Geister so schlecht lügen?","Weil man durch sie hindurchsieht."],
+["Wie nennt man einen Bumerang, der nicht zurückkommt?","Stock."],
+["Was ist weiß und hüpft durch den Wald?","Ein Jumpignon."],
+["Was macht ein Clown im Büro?","Faxen."],
+["Warum fliegen Vögel im Winter nach Süden?","Weil es zu weit zum Laufen ist."],
+["Was ist ein Cowboy ohne Pferd?","Ein Sattelschlepper."],
+["Treffen sich zwei Magnete. Fragt der eine:","Was soll ich heute bloß anziehen?"],
+["Warum war das Mathebuch so traurig?","Es hatte zu viele Probleme."],
+["Wie verabschiedet sich ein Astronaut von seiner Rakete?","Mach's gut – wir sehen uns im Orbit!"],
+];
+const SAYINGS=[
+"Morgenstund hat Gold im Mund – und Zahnpasta, wenn man geputzt hat.",
+"Wer anderen eine Grube gräbt, hat ein Grubengrabgerät.",
+"Ohne Fleiß kein Preis – ohne Schuhe kein Schulweg.",
+"Der frühe Vogel fängt den Wurm. Die frühe Rakete fängt den Bus.",
+"Übung macht den Meister. Und drei pünktliche Starts machen den Kommandanten.",
+];
+const FACTS=[
+"Das Licht der Sonne braucht etwa 8 Minuten bis zur Erde.",
+"Die ISS umrundet die Erde ungefähr 16-mal am Tag – die Crew sieht also rund 16 Sonnenaufgänge.",
+"Ein Tag auf der Venus dauert länger als ein ganzes Venus-Jahr.",
+"Die Saturn-V-Mondrakete war rund 110 Meter hoch.",
+"Zahnschmelz ist das härteste Material im menschlichen Körper.",
+"Apollo 11 landete am 20. Juli 1969 auf dem Mond.",
+"Im Weltraum gibt es keinen Schall – Mission Control funkt per Radiowellen.",
+];
+const TIPS={
+ toilet:"Tipp: Ohne Lesestoff geht's auf der Toilette schneller. Das Buch wartet!",
+ teeth:"Tipp: Wenn die Zahnbürste nach 2 Minuten stoppt, direkt weiter zur nächsten Phase.",
+ dress:"Tipp: Klamotten schon abends rauslegen – dann ist das Anziehen ein Kinderspiel.",
+ breakfast:"Tipp: Das Buch erst nach dem Frühstück aufschlagen.",
+ check:"Tipp: Brille und Watch abends immer an denselben Platz legen.",
+};
+const RANKS=[[0,"Kadett"],[300,"Raumfahrt-Schüler"],[800,"Pilot"],[1500,"Kommandant"],[3000,"Flight Director"],[5000,"Astronauten-Legende"]];
+const BADGES=[
+ {id:"first",n:"Erster Start",d:"Die erste Mission geschafft",m:"1"},
+ {id:"streak3",n:"Dreifach-Zündung",d:"3 pünktliche Starts in Folge",m:"3"},
+ {id:"streak5",n:"Fünf-Sterne-Crew",d:"5 pünktliche Starts in Folge",m:"5"},
+ {id:"streak10",n:"Orbit-Profi",d:"10 pünktliche Starts in Folge",m:"10"},
+ {id:"pb5",n:"Bestzeit-Jäger",d:"5 neue Bestzeiten",m:"PB"},
+ {id:"focus",n:"Laser-Fokus",d:"Eine Mission ganz ohne Houston-Nachfrage",m:"F"},
+ {id:"early10",n:"Frühstarter",d:"10 Minuten vor dem Start fertig",m:"10'"},
+ {id:"honest3",n:"Ehrlich währt am längsten",d:"3-mal ehrlich zugegeben, abgelenkt gewesen zu sein",m:"E"},
+];
+const DEF_DUR={toilet:180,teeth:180,dress:300,breakfast:900,check:120};
+const TASKS=["toilet","teeth","dress","breakfast","check"];
+function stepsDef(){const s=S.settings;return[
+ {id:"med1",kind:"med",title:"Zündung: "+s.med1,short:s.med1,mc:"Mission Control an "+KID()+": Zündsequenz bereit. Erste Tablette, bitte."},
+ {id:"bed",kind:"bed",title:"Triebwerke vorglühen",short:"Liegezeit",mc:"Triebwerke glühen vor. Du darfst noch liegen bleiben."},
+ {id:"toilet",kind:"task",title:"Toilette",short:"Toilette",mc:"Phase eins: Druckausgleich. Ab zur Toilette."},
+ {id:"teeth",kind:"task",title:"Zähne putzen",short:"Zähne",mc:"Phase zwei: Zahnschild polieren. Zwei Minuten, die Zahnbürste zählt mit."},
+ {id:"dress",kind:"task",title:"Anziehen",short:"Anziehen",mc:"Phase drei: Raumanzug anlegen."},
+ {id:"breakfast",kind:"breakfast",title:"Frühstück + "+s.med2,short:"Frühstück",mc:"Phase vier: Treibstoff tanken. Und die zweite Tablette nicht vergessen."},
+ {id:"check",kind:"check",title:"Systemcheck",short:"Check",mc:"Letzte Phase: Systemcheck vor dem Start."},
+];}
+
+/* ============ Zustand & Speicher ============ */
+const LS="bosse-mission-v1";
+function fresh(){return{v:1,updated:0,settings:{leave:"07:20",buffer:3,lieMode:"auto",pin:null,sound:true,voice:true,med1:"Tablette 1",med2:"Tablette 2",kid:"Kommandant",checks:["Brille auf","Apple Watch dran"],
+ wakeMode:"auto",wakeFix:"06:15",med2Gap:20,rewards:defRewards()},
+ xp:0,xpTotal:0,badges:{},stats:{pbs:0,honest:0},history:[],redemptions:[],run:null,streak:{count:0,best:0,freezes:0,start:null},marks:{}};}
+function defRewards(){return[
+ {id:"r1",name:"Abendfolge mit deinem Bruder",streak:1,per:"tag",cost:0},
+ {id:"r2",name:"15 Minuten Daddeln",streak:2,per:"tag",cost:0},
+ {id:"r4",name:"Abendessen aussuchen",streak:5,per:"meilenstein",cost:0}];}
+function migrate(){if(!S.streak){let c=0,b=0,start=null;S.history.filter(h=>!h.practice).forEach(h=>{if(h.onTime){if(!c)start=h.date;c++;b=Math.max(b,c);}else c=0;});S.streak={count:c,best:b,freezes:0,start:c?start:null};}
+ if(!S.marks)S.marks={};if(!S.settings.wakeMode){S.settings.wakeMode="auto";S.settings.wakeFix="06:15";}
+ if(S.settings.rewards.some(r=>!r.per))S.settings.rewards=defRewards();
+ if(S.settings.med2Gap===undefined)S.settings.med2Gap=20;
+ if(!S.settings.wakeOnceInit){S.settings.wakeOnceInit=true;S.settings.wakeOnce={date:"2026-11-17",time:"06:15"};}}
+let S=fresh();
+try{const raw=localStorage.getItem(LS);if(raw)S=Object.assign(fresh(),JSON.parse(raw));}catch(e){}
+migrate();
+/* ============ Gerät & Familien-Sync (Firebase) ============ */
+const FB_CONFIG={apiKey:"AIzaSyBbkbA7b9TR4cA1SI8HUu3kd8xwOV434hs",authDomain:"mission-morgenstart.firebaseapp.com",projectId:"mission-morgenstart",storageBucket:"mission-morgenstart.firebasestorage.app",messagingSenderId:"928981816558",appId:"1:928981816558:web:0efa5ed1a671bd18dd4fff"};
+const DK="mm-device";
+let DEV={famId:null,role:null,name:"",sound:true,voice:true};
+try{Object.assign(DEV,JSON.parse(localStorage.getItem(DK)||"{}"));}catch(e){}
+function saveDev(){try{localStorage.setItem(DK,JSON.stringify(DEV));}catch(e){}}
+const isMission=()=>DEV.role!=="parent";
+const KID=()=>(S.settings&&S.settings.kid)||"Kommandant";
+let fdb=null,fauth=null,uid=null,famRef=null,unsubs=[],lastMain=null,lastRun=null,syncState="offline",FAM=null,pushT=null;
+function mainPart(){const o=Object.assign({},S);delete o.run;delete o.updated;return JSON.stringify(o);}
+function runPart(){return JSON.stringify(S.run||null);}
+function save(){S.updated=Date.now();if(S.history.length>90)S.history=S.history.slice(-90);
+ try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}pushSync();}
+function pushSync(){if(!famRef)return;clearTimeout(pushT);pushT=setTimeout(()=>{if(!famRef)return;const m=mainPart(),r=runPart();
+ if(m!==lastMain){lastMain=m;famRef.collection("data").doc("main").set({state:m,updated:Date.now(),by:uid}).catch(syncErr);}
+ if(r!==lastRun){lastRun=r;famRef.collection("data").doc("run").set({state:r,updated:Date.now(),by:uid}).catch(syncErr);}},120);}
+function syncErr(e){console.warn(e);syncState="error";updateSyncDot();}
+function updateSyncDot(){document.querySelectorAll(".sync").forEach(el=>{el.className="sync "+syncState;});}
+addEventListener("offline",()=>{syncState="offline";updateSyncDot();});
+addEventListener("online",()=>{if(famRef){syncState="ok";updateSyncDot();}});
+async function initSync(){
+ if(!window.firebase){syncState="error";render();return;}
+ try{firebase.initializeApp(FB_CONFIG);fdb=firebase.firestore();fauth=firebase.auth();
+  try{await fdb.enablePersistence({synchronizeTabs:true});}catch(e){}
+  uid=await new Promise(res=>{let first=true;fauth.onAuthStateChanged(u=>{if(u)res(u.uid);else if(first)fauth.signInAnonymously().catch(syncErr);first=false;});});
+ }catch(e){syncErr(e);render();return;}
+ if(DEV.famId)connectFamily(DEV.famId);else render();}
+function connectFamily(id){unsubs.forEach(u=>u());unsubs=[];famRef=fdb.collection("families").doc(id);
+ unsubs.push(famRef.onSnapshot(sn=>{if(!sn.exists){leaveLocal("Die Familie gibt es nicht mehr.");return;}FAM=sn.data();
+   if(!FAM.members||!FAM.members[uid]){leaveLocal("Dieses Gerät wurde aus der Familie entfernt.");return;}
+   const me=FAM.members[uid];if(me.role&&me.role!==DEV.role){DEV.role=me.role;saveDev();render();}
+   syncState=navigator.onLine===false?"offline":"ok";updateSyncDot();if(view==="devices")render();},
+  e=>{syncErr(e);if(e&&e.code==="permission-denied")leaveLocal("Kein Zugriff auf die Familie. Bitte das Gerät neu koppeln.");}));
+ unsubs.push(famRef.collection("data").doc("main").onSnapshot(sn=>{if(!sn.exists){lastMain=null;pushSync();return;}const d=sn.data();if(!d||d.state===lastMain)return;lastMain=d.state;applyMain(JSON.parse(d.state));},syncErr));
+ unsubs.push(famRef.collection("data").doc("run").onSnapshot(sn=>{const st=sn.exists&&sn.data()?sn.data().state:"null";if(st===lastRun)return;lastRun=st;applyRun(JSON.parse(st));},syncErr));}
+function applyMain(o){const run=S.run;S=Object.assign(fresh(),o);S.run=run;migrate();try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}if(view!=="parent")render();}
+function applyRun(r){const prev=S.run;S.run=r;try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}
+ if(r&&!prev&&isMission()){keepAwake();radio("Mission Control an "+KID()+". Guten Morgen! Zündsequenz bereit.");}
+ if(r&&prev&&r.idx>prev.idx&&isMission()){const st=stepsDef()[r.idx];SFX.done();if(st)radio(st.mc.replace("Mission Control an "+KID()+": ",""));}
+ if(r&&prev&&r.med2&&!prev.med2){SFX.coin();setTimeout(()=>celebrate(),100);}
+ if(!r&&prev){alarmStop();releaseAwake();const last=S.history[S.history.length-1];if(last&&Date.now()-(last.done||0)<10*60000&&$("#launch").hidden){view="report";viewArg=S.history.length-1;render();SFX.fanfare();setTimeout(()=>celebrate(document.querySelector(".hero-done")),200);return;}}
+ if(view!=="parent"&&view!=="devices")render();}
+function leaveLocal(msg){unsubs.forEach(u=>u());unsubs=[];famRef=null;FAM=null;DEV.famId=null;saveDev();lastMain=lastRun=null;toast(msg);go("setup");}
+const CODE_ABC="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function randCode(n){const a=new Uint32Array(n);crypto.getRandomValues(a);return Array.from(a,x=>CODE_ABC[x%CODE_ABC.length]).join("");}
+async function createFamily(role,name,kid){if(!uid){toast("Noch keine Verbindung – bitte kurz warten");return;}
+ try{const id=randCode(20);const ref=fdb.collection("families").doc(id);
+  await ref.set({owner:uid,created:Date.now(),members:{[uid]:{name,role,joined:Date.now()}}});
+  DEV.famId=id;DEV.role=role;DEV.name=name;saveDev();
+  S=fresh();migrate();if(kid)S.settings.kid=kid;lastMain=null;lastRun=null;connectFamily(id);save();go("home");toast("Familie erstellt");}
+ catch(e){syncErr(e);toast("Erstellen fehlgeschlagen: "+(e.code||e.message));}}
+async function joinFamily(code,name){code=code.toUpperCase().replace(/[^A-Z0-9]/g,"");if(!uid){toast("Noch keine Verbindung – bitte kurz warten");return;}
+ try{const inv=await fdb.collection("invites").doc(code).get();if(!inv.exists){toast("Code nicht gefunden");return;}const d=inv.data();
+  if(d.exp<Date.now()){toast("Code ist abgelaufen");return;}
+  await fdb.collection("families").doc(d.fam).update({["members."+uid]:{name,role:d.role,invite:code,joined:Date.now()}});
+  DEV.famId=d.fam;DEV.role=d.role;DEV.name=name;saveDev();lastMain=null;lastRun=null;connectFamily(d.fam);
+  fdb.collection("invites").doc(code).delete().catch(()=>{});go("home");toast("Gerät gekoppelt");}
+ catch(e){syncErr(e);toast("Koppeln fehlgeschlagen: "+(e.code||e.message));}}
+async function createInvite(role){if(!famRef)return null;const code=randCode(8);
+ await fdb.collection("invites").doc(code).set({fam:famRef.id,role,exp:Date.now()+24*3600e3,by:uid});return code;}
+async function removeMember(id){await famRef.update({["members."+id]:firebase.firestore.FieldValue.delete()});}
+async function setRole(id,role){await famRef.update({["members."+id+".role"]:role});}
+
+/* ============ Helfer ============ */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad=n=>String(n).padStart(2,"0");
+function fmt(sec){sec=Math.max(0,Math.round(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return h?h+":"+pad(m)+":"+pad(s):m+":"+pad(s);}
+function fmtSigned(sec){const s=Math.round(sec);return(s<0?"−":"+")+fmt(Math.abs(s));}
+function clock(ts){const d=new Date(ts);return pad(d.getHours())+":"+pad(d.getMinutes());}
+function dayKey(ts){const d=new Date(ts||Date.now());return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
+function leaveTs(base){const[h,m]=S.settings.leave.split(":").map(Number);const d=new Date(base||Date.now());d.setHours(h,m,0,0);return d.getTime();}
+const WD=["So","Mo","Di","Mi","Do","Fr","Sa"];
+function dayLabel(k){const[y,m,d]=k.split("-").map(Number);const dt=new Date(y,m-1,d);return WD[dt.getDay()]+" "+d+"."+m+".";}
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const real=()=>S.history.filter(h=>!h.practice);
+function median(a){const b=[...a].sort((x,y)=>x-y);const n=b.length;return n%2?b[(n-1)/2]:(b[n/2-1]+b[n/2])/2;}
+function ghostFor(id){const r=real();for(let i=r.length-1;i>=0;i--){const s=r[i].steps&&r[i].steps[id];if(s&&s.dur)return s.dur;}return null;}
+function bestFor(id){let b=null;real().forEach(h=>{const s=h.steps&&h.steps[id];if(s&&s.dur&&(b===null||s.dur<b))b=s.dur;});return b;}
+function streakOf(list){let n=0;for(let i=list.length-1;i>=0;i--){if(list[i].onTime)n++;else break;}return n;}
+function rankOf(xp){let r=RANKS[0],nx=null;for(let i=0;i<RANKS.length;i++){if(xp>=RANKS[i][0]){r=RANKS[i];nx=RANKS[i+1]||null;}}return{name:r[1],min:r[0],next:nx};}
+function onTimeLast5(){return real().slice(-5).filter(h=>h.onTime).length;}
+const MILESTONES=[3,5,10,20,30,50,75,100];
+const FREEZE_COST=150,FREEZE_MAX=2;
+function lastReal(){const r=real();return r[r.length-1]||null;}
+function rewardState(rw){const st=S.streak.count,last=lastReal(),today=dayKey();
+ const usedToday=S.redemptions.some(x=>x.id===rw.id&&x.date===today);
+ if(rw.per==="tag"){const okToday=!!(last&&last.date===today&&last.onTime);
+  if(usedToday)return{ok:false,label:"Heute eingelöst",why:"Morgen wieder verdienen"};
+  if(!okToday)return{ok:false,label:"Noch nicht verdient",why:rw.streak>1?"Heute pünktlich starten und "+rw.streak+" Tage in Folge schaffen":"Heute pünktlich starten"};
+  if(st<rw.streak)return{ok:false,label:"Noch "+(rw.streak-st)+" Tag"+(rw.streak-st>1?"e":""),why:rw.streak+" pünktliche Tage in Folge nötig, du hast "+st};
+ }else{const mk=S.marks[rw.id];const base=(mk&&mk.start===S.streak.start)?mk.at:0;const need=base+rw.streak;
+  if(st<need)return{ok:false,label:"Noch "+(need-st)+" Tag"+(need-st>1?"e":""),why:"Bei Serie "+need+" freigeschaltet"};}
+ if(S.xp<(rw.cost||0))return{ok:false,label:"XP fehlen",why:"Kostet "+rw.cost+" XP"};
+ return{ok:true,label:"Einlösen",why:rw.per==="tag"?"Heute verdient!":"Serien-Belohnung verdient!"};}
+function med2Ts(r){const g=+S.settings.med2Gap||0;return g>0?leaveTs((r&&r.start)||Date.now())-g*60000:0;}
+function med2Locked(r){return !!(r&&!r.med2&&Date.now()<med2Ts(r));}
+function med2Tile(r){const lk=med2Locked(r);return`<button class="tile ${r.med2?"on":""}" data-act="med2" style="${lk?"opacity:.75;border-style:dashed":""}"><span class="box">${r.med2?ICON.check:lk?'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>':""}</span><span>${esc(S.settings.med2)} genommen<small>${r.med2?"Von Eltern bestätigt":lk?"Erst ab "+clock(med2Ts(r))+" · noch <b class=\"mono\" id=\"m2cd\"></b>":"Jetzt nehmen · Eltern bestätigen mit PIN"}</small></span></button>`;}
+function flame(size,lit){return`<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3-1-3 0-6 1-9.5z" fill="${lit?"#ff8a3d":"#2c3770"}"/><path d="M12 12c.6 1.8 2.5 2.6 2.5 4.6a2.5 2.5 0 0 1-5 0c0-1.2.8-2 1.5-2.6 0 .8.4 1.3 1 1.4-.3-1.2-.4-2.2 0-3.4z" fill="${lit?"#ffd166":"#1c2550"}"/></svg>`;}
+function weekStrip(){const now=new Date();const dow=(now.getDay()+6)%7;const mon=new Date(now);mon.setDate(now.getDate()-dow);
+ return["Mo","Di","Mi","Do","Fr","Sa","So"].map((n,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);const k=dayKey(d.getTime());const h=real().filter(x=>x.date===k).pop();
+  const state=h?(h.onTime?"on":(h.freezeUsed?"ice":"miss")):"";
+  return`<div class="wd ${k===dayKey()?"today":""}"><span>${n}</span>${state==="on"?flame(26,true):state==="ice"?'<b class="ice">❄</b>':state==="miss"?'<b class="miss">·</b>':flame(26,false)}</div>`;}).join("");}
+
+/* Plan: Liegezeit + Weckzeit (berechnet aus den letzten 3 echten Missionen) */
+function plan(){const r=real();const s=S.settings;let lie,why;
+ if(s.lieMode==="fix5"){lie=5;why="fest eingestellt";}
+ else if(s.lieMode==="fix10"){lie=10;why="fest eingestellt";}
+ else{const last=r[r.length-1];const ok3=r.slice(-3).filter(h=>h.onTime).length;
+  if(!last){lie=10;why="Startbonus für die erste Mission";}
+  else if(last.onTime&&ok3>=Math.min(2,r.length)){lie=10;why="Bonus: Letzte Mission pünktlich und "+ok3+" von "+Math.min(3,r.length)+" der letzten Starts pünktlich";}
+  else{lie=5;why=last.onTime?"Noch "+(2-ok3)+" pünktlicher Start bis zum 10-Minuten-Bonus":"Letzte Mission war knapp – mit einem pünktlichen Start holst du dir den Bonus zurück";}}
+ let routine=0;const last3=r.slice(-3);
+ TASKS.forEach(id=>{const v=last3.map(h=>h.steps&&h.steps[id]&&h.steps[id].dur).filter(Boolean);routine+=v.length?median(v):DEF_DUR[id];});
+ const pill=60,buf=(+s.buffer||0)*60;const lt=leaveTs();
+ const once=s.wakeOnce&&s.wakeOnce.date===dayKey()&&Date.now()<lt?s.wakeOnce.time:null;
+ if(s.wakeMode==="fix"||once){const[h,m]=(once||s.wakeFix).split(":").map(Number);const d=new Date(lt);d.setHours(h,m,0,0);const wake=d.getTime();
+  const slack=(lt-wake)/1000-pill-routine-buf;if(lie===10&&slack<600){lie=5;why="Weckzeit ist fest – heute reicht die Zeit nur für 5 Minuten Liegezeit";}
+  return{lie,why,routine,buf,wake,total:(lt-wake)/1000,estimated:last3.length===0,fixed:true,once:!!once};}
+ const total=pill+lie*60+routine+buf;const wake=lt-total*1000;
+ return{lie,why,routine,buf,wake,total,estimated:last3.length===0};}
+
+/* ============ Sound ============ */
+const A={ctx:null,master:null,nb:null};
+function audioInit(){
+ try{if(navigator.audioSession)navigator.audioSession.type="playback";}catch(e){}
+ if(!A.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;A.ctx=new C();A.master=A.ctx.createGain();A.master.gain.value=.7;A.master.connect(A.ctx.destination);
+  const b=A.ctx.createBuffer(1,1,22050),s=A.ctx.createBufferSource();s.buffer=b;s.connect(A.master);s.start(0);
+  try{if("speechSynthesis"in window){const u=new SpeechSynthesisUtterance(" ");u.volume=0;speechSynthesis.speak(u);}}catch(e){}loadClips();}
+ else if(A.ctx.state!=="running")A.ctx.resume();}
+const on=()=>A.ctx&&DEV.sound;
+function tone(f,t0,dur,type,vol,f2){const c=A.ctx,o=c.createOscillator(),g=c.createGain();o.type=type||"sine";o.frequency.setValueAtTime(f,t0);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t0+dur);
+ g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(vol||.2,t0+.012);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);o.connect(g);g.connect(A.master);o.start(t0);o.stop(t0+dur+.05);}
+function noiseBuf(){if(A.nb)return A.nb;const c=A.ctx,len=c.sampleRate*2,b=c.createBuffer(1,len,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;return A.nb=b;}
+function noise(o){const c=A.ctx,t0=o.t0||c.currentTime,dur=o.dur||1,s=c.createBufferSource();s.buffer=noiseBuf();s.loop=true;
+ const fl=c.createBiquadFilter();fl.type=o.type||"bandpass";fl.frequency.setValueAtTime(o.f||1000,t0);if(o.f2)fl.frequency.exponentialRampToValueAtTime(o.f2,t0+dur);fl.Q.value=o.q||1;
+ const g=c.createGain();g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(o.vol||.2,t0+(o.attack||Math.min(.3,dur/3)));
+ if(!o.loop)g.gain.exponentialRampToValueAtTime(.0001,t0+dur);s.connect(fl);fl.connect(g);g.connect(A.master);s.start(t0);if(!o.loop)s.stop(t0+dur+.1);
+ return{stop(){const n=c.currentTime;try{g.gain.cancelScheduledValues(n);g.gain.setValueAtTime(Math.max(g.gain.value,.0002),n);g.gain.exponentialRampToValueAtTime(.0001,n+.15);s.stop(n+.2);}catch(e){}}};}
+const SFX={
+ tap(){if(!on())return;tone(1200,A.ctx.currentTime,.05,"square",.05);},
+ done(){if(!on())return;const t=A.ctx.currentTime;[523,659,784,1047].forEach((f,i)=>tone(f,t+i*.075,.22,"triangle",.22));},
+ ghost(){if(!on())return;const t=A.ctx.currentTime;noise({t0:t,dur:.5,type:"highpass",f:800,f2:6000,vol:.12});tone(1047,t+.1,.4,"square",.08,2093);[1319,1568,2093].forEach((f,i)=>tone(f,t+.35+i*.08,.25,"triangle",.18));},
+ coin(){if(!on())return;const t=A.ctx.currentTime;tone(988,t,.08,"square",.1);tone(1319,t+.08,.3,"square",.1);},
+ quindar(f){if(!on())return;tone(f,A.ctx.currentTime,.25,"sine",.18);},
+ soft(){if(!on())return;tone(440,A.ctx.currentTime,.15,"sine",.15);},
+ err(){if(!on())return;const t=A.ctx.currentTime;tone(220,t,.15,"square",.12);tone(180,t+.15,.2,"square",.12);},
+ fanfare(){if(!on())return;const t=A.ctx.currentTime;const seq=[[392,0],[523,.18],[659,.36],[784,.54],[659,.78],[784,.9]];seq.forEach(([f,d])=>tone(f,t+d,.3,"sawtooth",.08));
+  [523,659,784,1047].forEach(f=>tone(f,t+1.15,1.6,"triangle",.12));},
+ rumble(dur){if(!on())return;const t=A.ctx.currentTime;noise({t0:t,dur:dur,type:"lowpass",f:60,f2:700,q:.5,vol:.55,attack:1.2});noise({t0:t+.4,dur:dur-.4,type:"bandpass",f:300,f2:1200,q:.4,vol:.12,attack:1});},
+ pb(){if(!on())return;const t=A.ctx.currentTime;noise({t0:t,dur:.7,type:"highpass",f:500,f2:8000,vol:.18});tone(80,t,.6,"sine",.5,40);
+  [523,659,784,1047,1319,1568,2093].forEach((f,i)=>tone(f,t+.15+i*.06,.3,"square",.07));
+  [[523,659,784],[587,740,880],[659,831,988,1319]].forEach((ch,j)=>ch.forEach(f=>{tone(f,t+.7+j*.32,j===2?1.8:.3,"sawtooth",.05);tone(f,t+.7+j*.32,j===2?1.8:.3,"triangle",.1);}));},
+ bigghost(){if(!on())return;const t=A.ctx.currentTime;noise({t0:t,dur:.6,type:"highpass",f:600,f2:7000,vol:.15});tone(70,t,.5,"sine",.45,35);
+  [784,988,1175,1568].forEach((f,i)=>tone(f,t+.12+i*.08,.35,"triangle",.2));tone(1568,t+.5,1,"triangle",.12);tone(2093,t+.5,1,"sine",.08);},
+ beep(hi){if(!on())return;tone(hi?1760:880,A.ctx.currentTime,.18,"sine",.25);},
+};
+/* Original-NASA-Funksprüche (gemeinfrei). Fehlen die Dateien, läuft alles mit Synth-Sounds. */
+const CLIPS={liftoff:"audio/liftoff.mp3",smallstep:"audio/smallstep.mp3",problem:"audio/problem.mp3",eagle:"audio/eagle.mp3"};
+const clipBuf={};let clipsLoading=false;
+function loadClips(){if(clipsLoading||!A.ctx)return;clipsLoading=true;
+ Object.entries(CLIPS).forEach(([k,u])=>{fetch(u).then(r=>r.ok?r.arrayBuffer():Promise.reject()).then(ab=>new Promise((res,rej)=>A.ctx.decodeAudioData(ab,res,rej))).then(b=>{clipBuf[k]=b;}).catch(()=>{});});}
+function playClip(k,vol,raw){if(!on()||!clipBuf[k])return 0;const c=A.ctx,s=c.createBufferSource(),g=c.createGain(),hp=c.createBiquadFilter();hp.type="highpass";hp.frequency.value=250;
+ s.buffer=clipBuf[k];g.gain.value=vol||1;s.connect(hp);hp.connect(g);g.connect(A.master);if(raw){s.start(c.currentTime);return clipBuf[k].duration;}
+ SFX.quindar(2525);s.start(c.currentTime+.3);
+ setTimeout(()=>SFX.quindar(2475),300+clipBuf[k].duration*1000+80);return clipBuf[k].duration;}
+let alarmT=null;
+function alarmStart(){alarmStop();const beat=()=>{if(!on())return;const t=A.ctx.currentTime;tone(700,t,.3,"square",.2);tone(950,t+.36,.3,"square",.2);};beat();alarmT=setInterval(beat,850);}
+function alarmStop(){if(alarmT){clearInterval(alarmT);alarmT=null;}}
+let deVoice=null;
+function pickVoice(){if(deVoice)return deVoice;try{const v=speechSynthesis.getVoices();deVoice=v.find(x=>/^de(-|_)DE/i.test(x.lang))||v.find(x=>/^de/i.test(x.lang))||null;}catch(e){}return deVoice;}
+try{if("speechSynthesis"in window)speechSynthesis.onvoiceschanged=()=>{deVoice=null;pickVoice();};}catch(e){}
+function radio(text){if(!isMission())return;
+ const canVoice=DEV.voice&&"speechSynthesis"in window;
+ if(!on()&&!canVoice)return;
+ SFX.quindar(2525);
+ const st=on()?noise({type:"bandpass",f:1800,q:.8,vol:.03,loop:true}):null;
+ let fin=false;const end=()=>{if(fin)return;fin=true;st&&st.stop();setTimeout(()=>SFX.quindar(2475),80);};
+ if(canVoice){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang="de-DE";const v=pickVoice();if(v)u.voice=v;u.rate=1.04;u.pitch=.95;u.onend=end;u.onerror=end;
+  setTimeout(()=>{try{speechSynthesis.speak(u);}catch(e){end();}},300);setTimeout(end,2500+text.length*85);}catch(e){setTimeout(end,900);}}
+ else setTimeout(end,900);}
+
+/* ============ Effekte ============ */
+const fx=$("#fx"),fctx=fx.getContext("2d");let parts=[],fxRun=false;
+function sizeFx(){fx.width=innerWidth*devicePixelRatio;fx.height=innerHeight*devicePixelRatio;}
+addEventListener("resize",sizeFx);sizeFx();
+function burst(x,y,n,colors){if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;const d=devicePixelRatio;
+ for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,v=(2+Math.random()*6)*d;parts.push({x:x*d,y:y*d,vx:Math.cos(a)*v,vy:Math.sin(a)*v-3*d,life:1,c:pick(colors),s:(2+Math.random()*4)*d,star:Math.random()<.4});}
+ if(!fxRun){fxRun=true;requestAnimationFrame(fxLoop);}}
+function star(c,x,y,r){c.beginPath();for(let i=0;i<10;i++){const rr=i%2?r*.45:r,a=i*Math.PI/5-Math.PI/2;c.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr);}c.closePath();c.fill();}
+function fxLoop(){fctx.clearRect(0,0,fx.width,fx.height);parts=parts.filter(p=>p.life>0);
+ parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.18*devicePixelRatio;p.life-=.016;fctx.globalAlpha=Math.max(0,p.life);fctx.fillStyle=p.c;if(p.star)star(fctx,p.x,p.y,p.s*1.6);else fctx.fillRect(p.x,p.y,p.s,p.s);});
+ fctx.globalAlpha=1;if(parts.length)requestAnimationFrame(fxLoop);else{fxRun=false;fctx.clearRect(0,0,fx.width,fx.height);}}
+function celebrate(el){const r=el?el.getBoundingClientRect():{left:innerWidth/2,top:innerHeight/2,width:0,height:0};burst(r.left+r.width/2,r.top+r.height/2,40,["#62e3ff","#ffd166","#ff8a3d","#5ff2a0","#ffffff"]);}
+function toast(msg){const t=document.createElement("div");t.className="toast";t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2600);}
+
+/* Großer Effekt: Geist geschlagen / Bestzeit */
+function fireworks(ms){const end=Date.now()+ms;const cols=["#62e3ff","#ffd166","#ff8a3d","#5ff2a0","#ffffff","#ff5d6c"];
+ const f=()=>{burst(innerWidth*(.15+Math.random()*.7),innerHeight*(.15+Math.random()*.5),45,cols);if(Date.now()<end)setTimeout(f,220+Math.random()*180);};f();
+ burst(20,innerHeight-20,60,cols);burst(innerWidth-20,innerHeight-20,60,cols);}
+function bigWin(kind,dur,delta,stepTitle){return new Promise(res=>{const w=$("#win");const pb=kind==="pb";
+ w.className=pb?"":"ghost";
+ w.innerHTML=`<div class="rays"></div><div class="kicker">${esc(stepTitle)}</div><h1>${pb?"NEUE BESTZEIT!":"GEIST GESCHLAGEN!"}</h1><div class="big">${fmt(dur)}</div>
+  <div class="delta">${fmt(delta)} schneller als gestern</div><div class="xps"><span>+5 XP</span>${pb?"<span>+5 XP Bestzeit</span>":""}</div><div class="tap">Tippen zum Weiterfliegen</div>`;
+ w.hidden=false;const fl=document.createElement("div");fl.className="flash";document.body.appendChild(fl);setTimeout(()=>fl.remove(),700);
+ const app=$("#app");app.classList.remove("quake");void app.offsetWidth;app.classList.add("quake");
+ if(pb){SFX.pb();fireworks(2600);setTimeout(()=>{if(!playClip("eagle"))radio("Neue Bestzeit! Grandios, "+KID()+"!");},1600);}
+ else{SFX.bigghost();fireworks(1400);setTimeout(()=>radio("Geist geschlagen! "+spoken(delta)+" schneller als gestern."),900);}
+ let done=false;const close=()=>{if(done)return;done=true;w.hidden=true;w.innerHTML="";res();};
+ setTimeout(()=>w.addEventListener("click",close,{once:true}),600);setTimeout(close,pb?7000:4500);});}
+
+/* Raketenstart-Animation */
+function launchAnim(done){
+ const L=$("#launch"),cv=$("#lc"),ct=$("#lct");L.hidden=false;const c=cv.getContext("2d");const d=devicePixelRatio;
+ cv.width=innerWidth*d;cv.height=innerHeight*d;const W=cv.width,H=cv.height;
+ const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+ const stars=Array.from({length:120},()=>({x:Math.random()*W,y:Math.random()*H,s:Math.random()*1.8*d+.4}));
+ let smoke=[],t0=performance.now(),liftAt=3000,end=liftAt+3600,shown=-1;
+ const hasClip=!!playClip("liftoff",1.1,true);if(!hasClip)SFX.beep(false);
+ function rocket(x,y,s){c.save();c.translate(x,y);c.scale(s,s);
+  c.fillStyle="#e9edf7";c.beginPath();c.moveTo(0,-90);c.bezierCurveTo(22,-60,24,-10,22,40);c.lineTo(-22,40);c.bezierCurveTo(-24,-10,-22,-60,0,-90);c.fill();
+  c.fillStyle="#ff8a3d";c.beginPath();c.moveTo(0,-90);c.bezierCurveTo(12,-74,16,-62,17,-55);c.lineTo(-17,-55);c.bezierCurveTo(-16,-62,-12,-74,0,-90);c.fill();
+  c.fillStyle="#1c2550";c.beginPath();c.arc(0,-25,10,0,7);c.fill();c.fillStyle="#62e3ff";c.beginPath();c.arc(0,-25,6,0,7);c.fill();
+  c.fillStyle="#ff5d6c";c.beginPath();c.moveTo(-22,10);c.lineTo(-40,48);c.lineTo(-22,40);c.fill();c.beginPath();c.moveTo(22,10);c.lineTo(40,48);c.lineTo(22,40);c.fill();
+  c.fillStyle="#9aa5d6";c.fillRect(-14,40,28,8);c.restore();}
+ function frame(now){const t=now-t0;c.fillStyle="#0a0f24";c.fillRect(0,0,W,H);
+  const lift=Math.max(0,t-liftAt);const speed=lift>0?Math.pow(lift/1000,2.2)*H*.18:0;
+  stars.forEach(s=>{s.y+=lift>0?Math.min(30*d,lift/90)*s.s:0;if(s.y>H)s.y-=H;c.fillStyle="#ffffffaa";c.fillRect(s.x,s.y,s.s,s.s*(lift>0?Math.min(12,1+lift/300):1));});
+  const gx=W/2,baseY=H*.78,scale=d*1.1;let ry=baseY-48*scale-speed;let shake=t>liftAt-800&&!reduce?(Math.random()-.5)*6*d:0;
+  c.fillStyle="#141b38";c.fillRect(0,baseY+speed*.6,W,H);
+  if(t>liftAt-900){for(let i=0;i<4;i++)smoke.push({x:gx+(Math.random()-.5)*30*d,y:ry+56*scale,vx:(Math.random()-.5)*4*d,vy:(1+Math.random()*2)*d,r:(8+Math.random()*10)*d,a:.5});}
+  smoke.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.r+=.8*d;p.a-=.007;});smoke=smoke.filter(p=>p.a>0);
+  smoke.forEach(p=>{c.fillStyle="rgba(200,205,230,"+p.a+")";c.beginPath();c.arc(p.x,p.y,p.r,0,7);c.fill();});
+  if(t>liftAt-900){const fl=(30+Math.random()*25+(lift>0?40:0))*scale;const g=c.createLinearGradient(0,ry+48*scale,0,ry+48*scale+fl);g.addColorStop(0,"#fff6c8");g.addColorStop(.4,"#ffd166");g.addColorStop(1,"rgba(255,93,60,0)");
+   c.fillStyle=g;c.beginPath();c.moveTo(gx-12*scale+shake,ry+48*scale);c.quadraticCurveTo(gx+shake,ry+48*scale+fl*1.3,gx+12*scale+shake,ry+48*scale);c.fill();}
+  rocket(gx+shake,ry,scale);
+  const sec=Math.ceil((liftAt-t)/1000);
+  if(t<liftAt){if(sec!==shown){shown=sec;ct.textContent=sec;if(sec<3&&!hasClip)SFX.beep(false);}}
+  else if(shown!==0){shown=0;ct.textContent="LIFTOFF!";SFX.rumble(3.6);if(!hasClip){SFX.beep(true);radio("Liftoff! Wir haben Liftoff! Mission erfüllt, "+KID()+"!");}}
+  if(t<end)requestAnimationFrame(frame);else{L.hidden=true;ct.textContent="";done();}}
+ requestAnimationFrame(frame);}
+
+/* ============ Wake Lock ============ */
+let wl=null;
+async function keepAwake(){if(!isMission())return;try{if(navigator.wakeLock&&!wl){wl=await navigator.wakeLock.request("screen");wl.addEventListener("release",()=>{wl=null;});}}catch(e){wl=null;}}
+function releaseAwake(){try{wl&&wl.release();}catch(e){}wl=null;}
+
+/* ============ Modal ============ */
+let modalResolve=null;
+function modal(html,bind){const m=$("#modal"),b=$("#modalbox");b.innerHTML=html;m.hidden=false;return new Promise(res=>{modalResolve=v=>{m.hidden=true;b.innerHTML="";modalResolve=null;res(v);};bind&&bind(b,modalResolve);});}
+function closeModal(v){modalResolve&&modalResolve(v);}
+function pinPad(title,sub){return new Promise(res=>{let code="";const draw=b=>{b.querySelector(".pindots").innerHTML=[0,1,2,3].map(i=>`<i class="${i<code.length?"on":""}"></i>`).join("");};
+ modal(`<div class="eyebrow">Eltern-Freigabe</div><h2>${esc(title)}</h2>${sub?`<p class="muted" style="margin:0">${esc(sub)}</p>`:""}<div class="pindots"></div>
+ <div class="pinpad">${[1,2,3,4,5,6,7,8,9].map(n=>`<button data-k="${n}">${n}</button>`).join("")}<button data-k="x" aria-label="Abbrechen">✕</button><button data-k="0">0</button><button data-k="b" aria-label="Löschen">⌫</button></div>`,
+ (b,close)=>{draw(b);b.querySelector(".pinpad").addEventListener("click",e=>{const k=e.target.closest("button");if(!k)return;const v=k.dataset.k;SFX.tap();
+  if(v==="x"){close(null);return;}if(v==="b"){code=code.slice(0,-1);draw(b);return;}if(code.length<4){code+=v;draw(b);}if(code.length===4)setTimeout(()=>close(code),150);});}).then(res);});}
+async function setupPin(){const a=await pinPad("Neue Eltern-PIN","4 Ziffern. "+KID()+" sollte sie nicht kennen.");if(!a)return false;const b=await pinPad("PIN wiederholen");if(a!==b){SFX.err();toast("PINs stimmen nicht überein");return false;}
+ S.settings.pin=a;save();toast("PIN gespeichert");return true;}
+async function parentOk(title,sub){if(DEV.role==="parent")return true;if(!S.settings.pin){toast("Zuerst eine Eltern-PIN festlegen");return await setupPin();}
+ for(let i=0;i<3;i++){const c=await pinPad(title,sub);if(c===null)return false;if(c===S.settings.pin){SFX.coin();return true;}SFX.err();const box=$("#modalbox");toast("Falsche PIN");}return false;}
+
+/* ============ Navigation ============ */
+let view="home",viewArg=null,tick=null;
+function go(v,arg){view=v;viewArg=arg;render();window.scrollTo(0,0);}
+const ICON={
+ gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+ gift:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v9H5v-9M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>',
+ log:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>',
+ medal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="15" r="6"/><path d="M8.5 9.5 6 2h4l2 5 2-5h4l-2.5 7.5"/></svg>',
+ back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>',
+ check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="20" height="20"><path d="M5 12l5 5L20 7"/></svg>',
+ x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+ sound:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>',
+ mute:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>',
+};
+function header(title,back){return`<div class="topbar">${back?`<button class="iconbtn" data-act="${view==="devices"?"parent":"home"}" aria-label="Zurück">${ICON.back}</button>`:`<div class="brand">Mission <b>Morgenstart</b></div>`}
+ ${title?`<h2 style="flex:1">${esc(title)}</h2>`:""}<div class="row" style="gap:8px"><span class="sync ${syncState}" title="Sync-Status"></span><button class="iconbtn" data-act="sound" aria-label="Ton an oder aus">${DEV.sound?ICON.sound:ICON.mute}</button>${back?"":`<button class="iconbtn" data-act="parent" aria-label="Elternbereich">${ICON.gear}</button>`}</div></div>`;}
+
+/* ============ Views ============ */
+function render(){clearInterval(tick);tick=null;const app=$("#app");
+ if(!DEV.famId)view="setup";
+ else if(S.run&&view!=="mission"&&view!=="parent"&&view!=="devices")view="mission";
+ const v={setup:vSetup,devices:vDevices,home:vHome,mission:vMission,report:vReport,shop:vShop,log:vLog,badges:vBadges,parent:vParent}[view]||vHome;app.innerHTML=v();
+ if(view==="home"||view==="mission"){tick=setInterval(()=>update(),250);update();}}
+
+function vHome(){const p=plan();const rk=rankOf(S.xpTotal);const st=S.streak.count;
+ const prog=rk.next?Math.round((S.xpTotal-rk.min)/(rk.next[0]-rk.min)*100):100;
+ const doneToday=real().some(h=>h.date===dayKey());
+ return header()+`
+ <section class="panel stack">
+  <div class="eyebrow">Nächster Start · ${esc(S.settings.leave)} Uhr</div>
+  <div class="countdown" id="cd">--:--</div>
+  <div class="muted" id="cdsub"></div>
+ </section>
+ <button class="btn btn-go" data-act="start">${doneToday?"Neue Mission (Probelauf)":"Mission starten"}</button>
+ <section class="panel stack">
+  <div class="row between"><h3>Flugplan</h3>${p.estimated?'<span class="chip warn">Startwerte geschätzt</span>':'<span class="chip">Basis: letzte '+Math.min(3,real().length)+' Missionen</span>'}</div>
+  <div class="kv"><div><div class="v">${clock(p.wake)}</div><div class="k">Wecken${p.once?" (nur heute)":p.fixed?" (fest)":""}</div></div><div><div class="v">${p.lie} Min</div><div class="k">Liegezeit</div></div><div><div class="v">${Math.round(p.routine/60)} Min</div><div class="k">Routine</div></div></div>
+  <div class="muted" style="font-size:.9rem">${p.lie===10?'<span class="chip gold">Bonus</span> ':""}${esc(p.why)}</div>
+  ${+S.settings.med2Gap>0?`<div class="muted" style="font-size:.9rem">${esc(S.settings.med2)} frühestens um <b class="mono">${clock(med2Ts(null))}</b></div>`:""}
+ </section>
+ <section class="panel stack">
+  <div class="row between"><div><div class="eyebrow">Rang</div><h3>${esc(rk.name)}</h3></div><div style="text-align:right"><div class="eyebrow">Punkte zum Einlösen</div><div class="mono" style="font-size:1.5rem;font-weight:700;color:var(--gold)">${S.xp} XP</div></div></div>
+  <div class="xpbar"><i style="width:${prog}%"></i></div>
+  <div class="row between muted" style="font-size:.85rem"><span>${S.xpTotal} XP gesamt</span><span>${rk.next?"Nächster Rang: "+esc(rk.next[1])+" bei "+rk.next[0]:"Höchster Rang erreicht!"}</span></div>
+  </section>
+ <section class="panel stack streakp">
+  <div class="row between" style="flex-wrap:nowrap"><div class="row" style="gap:6px;flex-wrap:nowrap">${flame(44,st>0)}<div><div class="mono" style="font-size:2rem;font-weight:700;line-height:1;color:${st?"var(--orange)":"var(--muted)"}">${st}</div><div class="eyebrow">Tage-Serie</div></div></div>
+   <div style="text-align:right"><div class="muted" style="font-size:.85rem">Rekord ${S.streak.best}</div><div class="muted" style="font-size:.85rem">Streak-Schutz: ${S.streak.freezes}/${FREEZE_MAX}</div></div></div>
+  <div class="week">${weekStrip()}</div>
+  <div class="muted" style="font-size:.88rem">${st?"Nächster Meilenstein: "+(MILESTONES.find(m=>m>st)||st+10)+" Tage":"Ein pünktlicher Start zündet deine Serie!"} · Tage ohne Mission (Wochenende) unterbrechen die Serie nicht.</div>
+ </section>
+ <nav class="nav"><button class="btn" data-act="shop">${ICON.gift}Belohnungen</button><button class="btn" data-act="log">${ICON.log}Logbuch</button><button class="btn" data-act="badges">${ICON.medal}Abzeichen</button></nav>
+ <div class="joke"><div>${esc(pick(FACTS))}</div></div>`;}
+
+function vMission(){const r=S.run;if(!r)return vHome();const steps=stepsDef();const st=steps[r.idx];
+ const stages=steps.map((s,i)=>`<i class="${i<r.idx?"done":i===r.idx?"now":""}"></i>`).join("");
+ let body="";
+ if(st.kind==="med"){body=`<div class="panel stack" style="text-align:center"><div class="eyebrow">Startpunkt des Tages</div><h2>${esc(S.settings.med1)} genommen?</h2><p class="muted" style="margin:0">Mama oder Papa bestätigen mit der Eltern-PIN. Dann startet die Mission.</p></div>
+  <button class="btn btn-go" data-act="med1">Eltern bestätigen</button>`;}
+ else if(st.kind==="bed"){const alarm=r.alarmAt&&!r.upAt;
+  body=alarm?`<div class="panel stack" style="text-align:center;border-color:var(--bad)"><div class="eyebrow" style="color:var(--bad)">T-0 · Alarm</div><h1>AUFSTEHEN!</h1><div class="countdown" id="react">0:00</div><p class="muted" style="margin:0">Die Uhr misst, wie schnell du auf den Beinen bist.</p></div>
+   <button class="btn btn-go" data-act="up">Ich stehe!</button>`
+  :`<div class="ringwrap">${ring()}<div class="center"><div class="eyebrow">Liegezeit</div><div class="t" id="tm">--:--</div><div class="muted" id="sub">${r.lie} Min${r.lie===10?" · Bonus":""}</div></div></div>
+   <div class="panel muted" style="font-size:.92rem">Bleib liegen und werd wach. Wenn der Countdown bei null ist, gibt's Alarm. <b>Lass die App offen</b>, sonst kann sie nicht klingeln.</div>
+   <button class="btn" data-act="up">Ich bin schon auf</button>`;}
+ else{const g=ghostFor(st.id),b=bestFor(st.id);
+  let extra="";
+  if(st.kind==="breakfast")extra=med2Tile(r)+(med2Locked(r)?`<div class="muted" style="font-size:.88rem">Damit die Tablette in der Schule wirkt, gibt's sie erst kurz vor dem Start. Bist du vorher fertig, rückt sie in den Systemcheck.</div>`:"");
+  if(st.kind==="check")extra=(r.med2?"":med2Tile(r))+S.settings.checks.map((c,i)=>`<button class="tile ${r.checks[i]?"on":""}" data-act="chk" data-i="${i}"><span class="box">${r.checks[i]?ICON.check:""}</span><span>${esc(c)}</span></button>`).join("");
+  r.m2lk=med2Locked(r);
+  const can=(st.kind!=="breakfast"||r.med2||r.m2lk)&&(st.kind!=="check"||(r.med2&&S.settings.checks.every((c,i)=>r.checks[i])));
+  body=`<div class="ringwrap">${ring()}<div class="center"><div class="eyebrow">${g?"Du gegen gestern":"Erste Messung"}</div><div class="t" id="tm">0:00</div><div class="muted" id="sub">${g?"Geist: "+fmt(g):"Morgen trittst du hiergegen an"}</div></div></div>
+   <div class="ghostline"><span class="muted">Gestern: <b class="mono">${g?fmt(g):"–"}</b></span><span class="muted">Bestzeit: <b class="mono">${b?fmt(b):"–"}</b></span></div>
+   ${extra}
+   <button class="btn btn-go" data-act="next" ${can?"":"disabled"}>${ICON.check} Erledigt</button>`;}
+ return`<div class="topbar"><div><div class="eyebrow">${r.practice?"Probelauf · ":""}Phase ${r.idx+1} von ${steps.length}</div><h2>${esc(st.title)}</h2></div><div class="row" style="gap:8px"><button class="iconbtn" data-act="sound" aria-label="Ton an oder aus">${DEV.sound?ICON.sound:ICON.mute}</button><button class="iconbtn" data-act="abort" aria-label="Mission abbrechen">${ICON.x}</button></div></div>
+ ${!isMission()?`<div class="banner" style="background:#62e3ff1a;color:var(--cyan)">Eltern-Gerät · Live-Ansicht</div>`:(!A.ctx||A.ctx.state!=="running")?`<button class="banner btn-go" data-act="unlock" style="width:100%">Ton aktivieren – hier tippen</button>`:""}
+ <div class="stages">${stages}</div>
+ <div class="mc">${esc(st.mc)}</div>
+ <div class="row between"><span class="muted">Start um <b class="mono">${esc(S.settings.leave)}</b></span><span class="mono" id="tl"></span></div>
+ ${body}`;}
+function ring(){const C=2*Math.PI*54;return`<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="#1c2550" stroke-width="10"/><circle id="arc" cx="60" cy="60" r="54" fill="none" stroke="#62e3ff" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"/><circle id="garc" cx="60" cy="60" r="54" fill="none" stroke="#ffd166" stroke-width="3" stroke-dasharray="2 ${C}" stroke-dashoffset="0" opacity="0"/></svg>`;}
+
+function update(){const now=Date.now();
+ if(view==="home"){const lt=leaveTs();let target=lt,sub="";if(now>lt){target=lt+864e5;}
+  const diff=(target-now)/1000;const h=Math.floor(diff/3600),m=Math.floor(diff%3600/60),s=Math.floor(diff%60);
+  const cd=$("#cd");if(cd)cd.textContent=(h?h+":"+pad(m):m)+":"+pad(s);
+  const p=plan();const cs=$("#cdsub");if(cs)cs.textContent=now>lt?"Start morgen um "+S.settings.leave+" Uhr · Wecken "+clock(p.wake+864e5):"bis zum Start · Weckzeit laut Plan "+clock(p.wake);return;}
+ const r=S.run;if(!r)return;const steps=stepsDef(),st=steps[r.idx];
+ const tl=$("#tl");if(tl){const left=(leaveTs(r.start)-now)/1000;tl.innerHTML=left>=0?`<span style="color:var(--good)">T−${fmt(left)}</span>`:`<span style="color:var(--warn)">T+${fmt(-left)}</span>`;}
+ const C=2*Math.PI*54;
+ if(st.kind==="bed"){
+  if(!r.alarmAt){const left=(r.bedEnd-now)/1000;const tm=$("#tm");if(tm)tm.textContent=fmt(left);const arc=$("#arc");if(arc){arc.style.strokeDashoffset=C*(left/(r.lie*60));}
+   if(left<=0){r.alarmAt=r.bedEnd;save();startAlarm();render();}}
+  else if(!r.upAt){const e=$("#react");if(e)e.textContent=fmt((now-r.alarmAt)/1000);}
+  return;}
+ if(st.kind==="med")return;
+ if((st.kind==="breakfast"||st.kind==="check")&&!r.med2){const lk=med2Locked(r);const cd=$("#m2cd");if(cd)cd.textContent=fmt((med2Ts(r)-now)/1000);
+  if(r.m2lk&&!lk){r.m2lk=false;render();SFX.coin();radio("Mission Control: Jetzt ist Zeit für "+S.settings.med2+"!");return;}}
+ const el=(now-r.stepStart)/1000;const tm=$("#tm");if(tm)tm.textContent=fmt(el);
+ const g=ghostFor(st.id);const ref=g||DEF_DUR[st.id];const arc=$("#arc");
+ if(arc){const frac=Math.min(1,el/(ref*1.0));arc.style.strokeDashoffset=C*(1-frac);arc.setAttribute("stroke",el>ref?"#ff8a3d":"#62e3ff");}
+ const sub=$("#sub");if(sub&&g){sub.innerHTML=el<=g?`<span style="color:var(--good)">${fmt(g-el)} Vorsprung</span>`:`<span style="color:var(--warn)">Geist ist ${fmt(el-g)} vorne</span>`;}
+ if(g&&el>g&&!r.ghostPassed){r.ghostPassed=true;SFX.soft();}
+ // Houston-Nachfrage bei deutlicher Überziehung
+ const lim=Math.max(ref*1.5,ref+90);
+ if(isMission()&&el>lim&&$("#modal").hidden&&(!r.lastAlert||now-r.lastAlert>120000)){r.lastAlert=now;r.alerts=(r.alerts||0)+1;save();houston();}}
+
+/* ============ Missionslogik ============ */
+async function startMission(){audioInit();const doneToday=real().some(h=>h.date===dayKey());
+ if(!S.settings.pin&&isMission()){const ok=await setupPin();if(!ok)return;}
+ const p=plan();
+ S.run={date:dayKey(),practice:doneToday,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};
+ save();keepAwake();go("mission");radio("Mission Control an "+KID()+". Guten Morgen! Zündsequenz bereit.");}
+async function confirmMed1(){if(!await parentOk(S.settings.med1+" bestätigen",""+KID()+" hat die Tablette genommen."))return;
+ const r=S.run,now=Date.now();r.start=now;r.steps.med1={dur:0,confirmed:true};r.idx=1;r.bedEnd=now+r.lie*60000;r.stepStart=now;save();SFX.done();render();
+ radio("Zündung bestätigt. Du hast "+r.lie+" Minuten Liegezeit. Ich wecke dich.");}
+function startAlarm(){if(!isMission())return;const d=playClip("problem");if(d){setTimeout(()=>{if(S.run&&!S.run.upAt){alarmStart();radio("T minus null! "+KID()+", aufstehen!");}},d*1000+900);}else{alarmStart();radio("T minus null! "+KID()+", aufstehen! Die Rakete wartet.");}}
+function getUp(){const r=S.run,now=Date.now();alarmStop();
+ r.upAt=now;r.steps.bed={dur:Math.round((now-r.stepStart)/1000),react:r.alarmAt?Math.round((now-r.alarmAt)/1000):0,early:!r.alarmAt};
+ nextStep(true);}
+async function confirmMed2(){if(S.run.med2)return;
+ if(med2Locked(S.run)){const ok=await modal(`<div class="eyebrow">Noch zu früh</div><h2>${esc(S.settings.med2)} eigentlich erst ab ${clock(med2Ts(S.run))}</h2><p class="muted" style="margin:0">Damit die Wirkung bis in die Schule reicht. Nur Eltern können früher freigeben.</p><button class="btn btn-cyan" data-v="0">Okay, ich warte</button><button class="btn" data-v="1">Eltern: trotzdem jetzt</button>`,(b,close)=>b.addEventListener("click",e=>{const k=e.target.closest("[data-v]");if(k)close(k.dataset.v==="1");}));if(!ok)return;}
+ if(!await parentOk(S.settings.med2+" bestätigen",""+KID()+" hat die zweite Tablette genommen."))return;S.run.med2=true;save();render();celebrate($("[data-act=med2]"));}
+async function completeTask(btn){const r=S.run,steps=stepsDef(),st=steps[r.idx],now=Date.now();
+ let dur=Math.round((now-r.stepStart)/1000);const g=ghostFor(st.id),b=bestFor(st.id);
+ if(st.kind==="check"&&r.checksAt&&r.checksAt>r.stepStart)dur=Math.round((Math.min(now,r.checksAt)-r.stepStart)/1000);
+ const rec={dur,ghost:g,hidden:Math.round(r.hidden/1000),alerts:r.alerts||0,distracted:null};
+ rec.beat=!!(g&&dur<g);rec.pb=!!(b&&dur<b);r.steps[st.id]=rec;
+ if(rec.beat){save();await bigWin(rec.pb?"pb":"ghost",dur,g-dur,st.title);}else{SFX.done();celebrate(btn);}
+ if(rec.alerts>0||rec.hidden>=30){save();const ans=await modal(`<div class="eyebrow">Funkfrage von Houston</div><h2>Hat dich in dieser Phase etwas abgelenkt?</h2><p class="muted" style="margin:0">Ehrlichkeit bringt <b style="color:var(--gold)">+5 XP</b>. Das hilft uns, den Flugplan besser zu machen.</p>
+  <button class="btn btn-cyan" data-v="1">Ja, ehrlich gesagt</button><button class="btn" data-v="0">Nein</button>`,(b2,close)=>b2.addEventListener("click",e=>{const k=e.target.closest("[data-v]");if(k)close(k.dataset.v==="1");}));
+  rec.distracted=!!ans;if(ans){SFX.coin();toast("+5 XP für Ehrlichkeit");}}
+ if(st.kind==="breakfast"){rec.med2=!!r.med2;if(!r.med2)rec.med2Deferred=true;}
+ if(r.idx===steps.length-1){finish();return;}
+ nextStep(false);}
+function nextStep(fromBed){const r=S.run,steps=stepsDef();r.idx++;r.stepStart=Date.now();r.hidden=0;r.hiddenSince=null;r.alerts=0;r.lastAlert=null;r.ghostPassed=false;save();render();
+ const st=steps[r.idx];const g=ghostFor(st.id);radio(st.mc.replace("Mission Control an "+KID()+": ","")+(g?" Dein Geist von gestern: "+spoken(g)+".":""));}
+function spoken(sec){const m=Math.floor(sec/60),s=Math.round(sec%60);return(m?m+" Minute"+(m===1?"":"n")+" ":"")+(s?s+" Sekunden":"");}
+function houston(){SFX.quindar(2525);radio(pick(["Houston an "+KID()+": Bist du noch auf Kurs?","Mission Control hier. Alles in Ordnung bei dir?",""+KID()+", hier spricht Houston. Wir brauchen dich in der Umlaufbahn!"]));
+ modal(`<div class="eyebrow">Houston an ${esc(KID())}</div><h2>Bist du noch auf Kurs?</h2><p class="muted" style="margin:0">Diese Phase dauert länger als sonst. Kein Problem, weiter geht's!</p><button class="btn btn-cyan" data-v="1">Bin dran!</button>`,(b,close)=>b.addEventListener("click",e=>{if(e.target.closest("[data-v]"))close(1);}));}
+
+function finish(){const r=S.run,now=Date.now();r.done=now;
+ const prevReal=real();const lt=leaveTs(r.start);const onTime=now<=lt;const early=(lt-now)/60000;
+ const day={date:r.date,practice:r.practice,start:r.start,upAt:r.upAt,done:now,leave:S.settings.leave,lie:r.lie,lieWhy:r.lieWhy,plannedWake:r.plannedWake,steps:r.steps,onTime,early:Math.round(early*10)/10};
+ day.total=Math.round((now-(r.upAt||r.start))/1000);
+ // Punkte
+ const items=[];const add=(n,t)=>items.push([n,t]);
+ add(20,"Beide Tabletten bestätigt");
+ const bed=r.steps.bed||{};if(bed.early)add(10,"Schon vor dem Alarm aufgestanden");else if(bed.react<=60)add(10,"Sofort nach dem Alarm aufgestanden");else if(bed.react<=180)add(5,"Nach dem Alarm aufgestanden");
+ let focusAll=true,pbs=0,honest=0;
+ TASKS.forEach(id=>{const s=r.steps[id];if(!s)return;add(10,stepName(id)+" erledigt");if(s.beat)add(5,"Geist geschlagen: "+stepName(id));if(s.pb){add(5,"Neue Bestzeit: "+stepName(id));pbs++;}
+  if(s.alerts>0||s.hidden>=30)focusAll=false;if(s.distracted){add(5,"Ehrlichkeits-Bonus: "+stepName(id));honest++;}});
+ if(focusAll)add(15,"Voller Fokus: keine Houston-Nachfrage");
+ if(onTime){add(30,"Pünktlich startklar");const e=Math.min(10,Math.floor(early));if(e>0)add(e,e+" Min früher fertig");}
+ let st=S.streak.count,freezeUsed=false,milestone=null,lost=0;
+ if(!r.practice){if(onTime){if(!st)S.streak.start=r.date;st++;}else if(S.streak.freezes>0){S.streak.freezes--;freezeUsed=true;}else{lost=st;st=0;S.streak.start=null;}
+  S.streak.count=st;S.streak.best=Math.max(S.streak.best,st);if(onTime&&MILESTONES.includes(st))milestone=st;}
+ else st=onTime?st+1:st;
+ if(onTime&&st>=2)add(Math.min(25,5*(st-1)),"Serie: "+st+" Tage in Folge");if(milestone)add(milestone>=10?50:25,"Meilenstein: "+milestone+"-Tage-Serie!");
+ day.xp=items.reduce((a,b)=>a+b[0],0);day.items=items;day.streak=st;day.focus=focusAll;day.freezeUsed=freezeUsed;day.milestone=milestone;day.lost=lost;
+ day.insights=insights(day);const j=pick(JOKES);day.joke=j;
+ if(!r.practice){S.xp+=day.xp;S.xpTotal+=day.xp;S.stats.pbs+=pbs;S.stats.honest+=honest;}
+ S.history.push(day);
+ // Abzeichen
+ day.newBadges=[];if(!r.practice){const nb=id=>{if(!S.badges[id]){S.badges[id]=day.date;day.newBadges.push(id);}};
+  nb("first");if(st>=3)nb("streak3");if(st>=5)nb("streak5");if(st>=10)nb("streak10");if(S.stats.pbs>=5)nb("pb5");if(focusAll)nb("focus");if(early>=10)nb("early10");if(S.stats.honest>=3)nb("honest3");}
+ const p=plan();day.next={lie:p.lie,why:p.why,wake:p.wake+(Date.now()>leaveTs()?864e5:0)};
+ S.run=null;save();releaseAwake();
+ launchAnim(()=>{go("report",S.history.length-1);SFX.fanfare();setTimeout(()=>playClip("smallstep"),2600);setTimeout(()=>celebrate(document.querySelector(".hero-done")),200);});}
+function stepName(id){const s=stepsDef().find(x=>x.id===id);return s?s.short:id;}
+function insights(day){const out=[];const t=TASKS.map(id=>({id,s:day.steps[id]})).filter(x=>x.s);
+ const withG=t.filter(x=>x.s.ghost);
+ if(!withG.length)out.push(["good","Erster Flug im Logbuch! Morgen trittst du gegen diese Zeiten an."]);
+ else{const gain=withG.map(x=>({id:x.id,d:x.s.ghost-x.s.dur})).sort((a,b)=>b.d-a.d);
+  if(gain[0].d>=15)out.push(["good","Stark: "+stepName(gain[0].id)+" war "+fmt(gain[0].d)+" schneller als gestern."]);
+  const loss=gain[gain.length-1];if(loss.d<=-30)out.push(["warn","Potenzial: "+stepName(loss.id)+" war "+fmt(-loss.d)+" langsamer als gestern. "+(TIPS[loss.id]||"")]);}
+ const hid=t.reduce((a,x)=>a+(x.s.hidden||0),0);if(hid>=60)out.push(["warn","Du warst insgesamt "+fmt(hid)+" Min außerhalb der App."]);
+ const al=t.reduce((a,x)=>a+(x.s.alerts||0),0);if(al>0)out.push(["warn","Houston musste "+al+"-mal nachfragen."]);else out.push(["good","Kein einziges Mal musste Houston nachfragen. Laser-Fokus!"]);
+ const bed=day.steps.bed;if(bed&&!bed.early&&bed.react>60)out.push(["warn","Nach dem Alarm hast du "+fmt(bed.react)+" zum Aufstehen gebraucht."]);
+ if(day.onTime)out.push(["good",day.early>=1?"Du warst "+Math.floor(day.early)+" Min vor dem Start fertig.":"Punktlandung zum Start!"]);
+ else out.push(["warn","Diesmal "+Math.ceil(-day.early)+" Min nach dem Startzeitpunkt fertig. Morgen holen wir die Minuten zurück!"]);
+ if(day.freezeUsed)out.push(["good","Dein Streak-Schutz hat die Serie gerettet!"]);
+ if(day.lost)out.push(["warn","Die Serie von "+day.lost+" Tagen ist vorbei. Dein Rekord bleibt – und morgen zündest du eine neue!"]);
+ return out;}
+
+/* ============ Bericht ============ */
+function vReport(){const day=S.history[viewArg];if(!day)return vHome();
+ const rows=TASKS.map(id=>{const s=day.steps[id];if(!s)return"";const d=s.ghost?s.dur-s.ghost:null;
+  return`<tr><td>${esc(stepName(id))}${s.pb?' <span class="chip gold">PB</span>':""}${s.distracted?' <span class="chip warn">abgelenkt</span>':""}</td><td class="n">${fmt(s.dur)}</td><td class="n">${s.ghost?fmt(s.ghost):"–"}</td><td class="n ${d===null?"":d<0?"faster":"slower"}">${d===null?"–":fmtSigned(d)}</td></tr>`;}).join("");
+ const fresh=viewArg===S.history.length-1&&Date.now()-day.done<6*3600e3;
+ return header(fresh?"":"Missionsbericht",!fresh)+`
+ <section class="hero-done stack pop">
+  <div class="eyebrow">${day.practice?"Probelauf · zählt nicht":dayLabel(day.date)+" · Missionsbericht"}</div>
+  <h1>${day.onTime?"Mission erfüllt!":"Gelandet!"}</h1>
+  <div class="bigxp">+${day.practice?0:day.xp} XP</div>
+  <div class="row" style="justify-content:center"><span class="chip ${day.onTime?"good":"warn"}">Fertig um ${clock(day.done)}</span><span class="chip">Routine ${fmt(day.total)}</span>${day.streak>=2?`<span class="chip gold">Serie ${day.streak}</span>`:""}</div>
+ </section>
+ ${!day.practice?`<section class="panel streak-hero pop">${flame(48,day.streak>0)}<div><div class="mono" style="font-size:2.2rem;font-weight:700;line-height:1;color:${day.streak?"var(--orange)":"var(--muted)"}">${day.streak}</div><div class="eyebrow">${day.milestone?"Meilenstein erreicht!":day.freezeUsed?"Serie gerettet":"Tage-Serie"}</div></div></section>`:""}
+ ${(day.newBadges||[]).map(id=>{const b=BADGES.find(x=>x.id===id);return b?`<div class="badge pop"><div class="medal">${esc(b.m)}</div><div><div class="eyebrow">Neues Abzeichen</div><b>${esc(b.n)}</b><div class="muted" style="font-size:.85rem">${esc(b.d)}</div></div></div>`:"";}).join("")}
+ <section class="panel stack"><h3>So lief's</h3>${day.insights.map(([k,t])=>`<div class="row" style="align-items:flex-start;flex-wrap:nowrap"><span class="chip ${k}" style="flex:none">${k==="good"?"Top":"Hinweis"}</span><span style="min-width:0">${esc(t)}</span></div>`).join("")}</section>
+ <section class="panel"><h3 style="margin-bottom:6px">Du gegen gestern</h3><div style="overflow-x:auto"><table><thead><tr><th>Phase</th><th class="n">Heute</th><th class="n">Gestern</th><th class="n">Diff</th></tr></thead><tbody>${rows}</tbody></table></div></section>
+ <section class="panel stack"><div class="row between"><h3>Flugplan morgen</h3>${day.next.lie===10?'<span class="chip gold">Bonus-Liegezeit</span>':""}</div>
+  <div class="kv"><div><div class="v">${clock(day.next.wake)}</div><div class="k">Wecken</div></div><div><div class="v">${day.next.lie} Min</div><div class="k">Liegezeit</div></div><div><div class="v">${esc(day.leave)}</div><div class="k">Start</div></div></div>
+  <div class="muted" style="font-size:.9rem">${esc(day.next.why)}</div></section>
+ <section class="panel stack"><h3>Punkte</h3>${day.items.map(([n,t])=>`<div class="row between" style="flex-wrap:nowrap"><span style="min-width:0">${esc(t)}</span><b class="mono" style="color:var(--gold)">+${n}</b></div>`).join("")}</section>
+ <div class="joke"><div class="eyebrow" style="font-style:normal;margin-bottom:6px">Witz des Tages</div><div>${esc(day.joke[0])}</div><div class="punch">${esc(day.joke[1])}</div></div>
+ <button class="btn btn-cyan" data-act="home">Zurück zur Basis</button>`;}
+
+/* ============ Belohnungen ============ */
+function vShop(){const st=S.streak.count;
+ return header("Belohnungen",true)+`<section class="panel row between" style="flex-wrap:nowrap"><div class="row" style="gap:6px;flex-wrap:nowrap">${flame(36,st>0)}<div><div class="mono" style="font-size:1.6rem;font-weight:700;line-height:1">${st}</div><div class="eyebrow">Tage-Serie</div></div></div><div style="text-align:right"><div class="eyebrow">Punkte</div><div class="mono" style="font-size:1.6rem;font-weight:700;color:var(--gold)">${S.xp} XP</div></div></section>
+ <div class="list">${S.settings.rewards.map(rw=>{const rs=rewardState(rw);
+  return`<div class="panel reward"><div style="min-width:0"><b>${esc(rw.name)}</b><div class="muted" style="font-size:.85rem">${rw.per==="tag"?(rw.streak>1?rw.streak+" pünktliche Tage in Folge":"Ein pünktlicher Tag")+" · gilt für den Abend":"Alle "+rw.streak+" Serien-Tage einmal"}${rw.cost?" · "+rw.cost+" XP":""}</div><div style="font-size:.85rem;color:${rs.ok?"var(--good)":"var(--muted)"}">${esc(rs.why)}</div></div>
+   <button class="btn btn-sm ${rs.ok?"btn-cyan":""}" style="flex:none" data-act="redeem" data-id="${esc(rw.id)}" ${rs.ok?"":"disabled"}>${esc(rs.label)}</button></div>`;}).join("")}</div>
+ <section class="panel stack"><div class="row between"><h3>Streak-Schutz</h3><span class="chip">${S.streak.freezes}/${FREEZE_MAX}</span></div>
+  <div class="muted" style="font-size:.9rem">Rettet deine Serie, wenn eine Mission mal nicht pünktlich klappt. Wird automatisch eingesetzt.</div>
+  <button class="btn ${S.xp>=FREEZE_COST&&S.streak.freezes<FREEZE_MAX?"btn-cyan":""}" data-act="freeze" ${S.xp>=FREEZE_COST&&S.streak.freezes<FREEZE_MAX?"":"disabled"}>Kaufen für ${FREEZE_COST} XP</button></section>
+ ${S.redemptions.length?`<section class="panel stack"><h3>Eingelöst</h3>${S.redemptions.slice(-8).reverse().map(x=>`<div class="row between"><span>${esc(x.name)}</span><span class="muted mono">${dayLabel(x.date)}</span></div>`).join("")}</section>`:""}`;}
+async function redeem(id){const rw=S.settings.rewards.find(x=>x.id===id);if(!rw||!rewardState(rw).ok)return;if(!await parentOk("Einlösen: "+rw.name,rw.cost?rw.cost+" XP werden abgezogen.":"Eltern geben die Belohnung frei."))return;
+ S.xp-=(rw.cost||0);if(rw.per==="meilenstein"){const mk=S.marks[rw.id];const base=(mk&&mk.start===S.streak.start)?mk.at:0;S.marks[rw.id]={start:S.streak.start,at:base+rw.streak};}
+ S.redemptions.push({id,name:rw.name,cost:rw.cost||0,date:dayKey()});save();SFX.fanfare();render();toast(rw.name+" eingelöst!");celebrate();}
+function buyFreeze(){if(S.xp<FREEZE_COST||S.streak.freezes>=FREEZE_MAX)return;S.xp-=FREEZE_COST;S.streak.freezes++;save();SFX.coin();render();toast("Streak-Schutz aktiviert");celebrate();}
+
+/* ============ Logbuch & Abzeichen ============ */
+function vLog(){const h=S.history.map((d,i)=>({d,i})).filter(x=>!x.d.practice);const last=h.slice(-14);const mx=Math.max(1,...last.map(x=>x.d.total||0));
+ return header("Logbuch",true)+(h.length?`<section class="panel stack"><div class="row between"><h3>Routine-Dauer</h3><span class="muted" style="font-size:.85rem">letzte ${last.length} Missionen</span></div>
+  <div class="bars">${last.map(x=>`<i class="${x.d.onTime?"":"late"}" style="height:${Math.round((x.d.total||0)/mx*100)}%" title="${dayLabel(x.d.date)}: ${fmt(x.d.total)}"></i>`).join("")}</div>
+  <div class="row muted" style="font-size:.8rem"><span class="chip good">pünktlich</span><span class="chip warn">zu spät</span></div></section>`:`<div class="panel muted">Noch keine Missionen im Logbuch. Nach dem ersten Start erscheint hier jeder Tag mit Bericht.</div>`)+
+ `<div class="list">${S.history.map((d,i)=>({d,i})).reverse().map(({d,i})=>`<button class="logitem" data-act="openrep" data-i="${i}"><span><b>${dayLabel(d.date)}</b> <span class="muted">${d.practice?"Probelauf":"fertig "+clock(d.done)}</span></span><span class="row" style="gap:6px;flex-wrap:nowrap"><span class="chip ${d.onTime?"good":"warn"}">${d.onTime?"pünktlich":"spät"}</span><span class="mono" style="color:var(--gold)">+${d.practice?0:d.xp}</span></span></button>`).join("")}</div>`;}
+function vBadges(){return header("Abzeichen",true)+`<div class="list">${BADGES.map(b=>`<div class="badge ${S.badges[b.id]?"":"off"}"><div class="medal">${esc(b.m)}</div><div><b>${esc(b.n)}</b><div class="muted" style="font-size:.85rem">${esc(b.d)}${S.badges[b.id]?" · "+dayLabel(S.badges[b.id]):""}</div></div></div>`).join("")}</div>
+ <section class="panel stack"><h3>Ränge</h3>${RANKS.map(([x,n])=>`<div class="row between"><span>${S.xpTotal>=x?"<b>"+esc(n)+"</b>":'<span class="muted">'+esc(n)+"</span>"}</span><span class="mono muted">${x} XP</span></div>`).join("")}</section>`;}
+
+/* ============ Einrichtung & Geräte ============ */
+let lastInvite=null;
+function vSetup(){const ready=!!uid;
+ return`<div class="topbar"><div class="brand">Mission <b>Morgenstart</b></div><span class="sync ${syncState}"></span></div>
+ <section class="panel stack"><h1>Willkommen an Bord!</h1><p class="muted" style="margin:0">Dieses Gerät ist noch mit keiner Familie verbunden. ${ready?"":"Verbinde mit dem Server …"}</p></section>
+ <section class="panel stack"><h2>Neue Familie erstellen</h2><p class="muted" style="margin:0;font-size:.9rem">Nur einmal, auf dem ersten Gerät.</p>
+  <label class="f">Dieses Gerät ist<select id="s-role"><option value="mission">Mission-Gerät (das Kind spielt hier)</option><option value="parent">Eltern-Gerät</option></select></label>
+  <div class="grid2"><label class="f">Name dieses Geräts<input id="s-name" placeholder="z. B. Papas iPhone"></label><label class="f">Name des Kindes<input id="s-kid" placeholder="Vorname"></label></div>
+  <button class="btn btn-go" data-act="mkfam" ${ready?"":"disabled"}>Familie erstellen</button></section>
+ <section class="panel stack"><h2>Einer Familie beitreten</h2><p class="muted" style="margin:0;font-size:.9rem">Den Code erzeugst du auf einem schon gekoppelten Gerät unter Elternbereich → Geräte &amp; Familie.</p>
+  <label class="f">Einladungscode<input id="s-code" placeholder="8 Zeichen" autocapitalize="characters" autocomplete="off" style="font-family:var(--f-mono);letter-spacing:.15em;text-transform:uppercase"></label>
+  <label class="f">Name dieses Geräts<input id="s-jname" placeholder="z. B. Mamas iPhone"></label>
+  <button class="btn btn-cyan" data-act="join" ${ready?"":"disabled"}>Beitreten</button></section>
+ ${syncState==="error"?`<div class="panel muted">Keine Verbindung zum Server. Prüfe die Internetverbindung und öffne die App neu.</div>`:""}`;}
+function vDevices(){const mem=FAM&&FAM.members?Object.entries(FAM.members):[];const RN={mission:"Mission-Gerät",parent:"Eltern-Gerät"};
+ return header("Geräte & Familie",true)+`
+ <section class="panel stack"><h3>Gekoppelte Geräte</h3>${mem.length?mem.sort((a,b)=>(a[1].joined||0)-(b[1].joined||0)).map(([id,m])=>`<div class="stack" style="border-top:1px solid var(--line);padding-top:10px;gap:8px"><div class="row between"><b>${esc(m.name||"Gerät")}${id===uid?' <span class="chip good">dieses Gerät</span>':""}</b><span class="chip">${RN[m.role]||m.role}</span></div>
+  <div class="row"><button class="btn btn-sm" data-act="setrole" data-id="${esc(id)}" data-role="${m.role==="parent"?"mission":"parent"}">Zu ${m.role==="parent"?"Mission-Gerät":"Eltern-Gerät"} machen</button>${id!==uid?`<button class="btn btn-sm btn-ghost" style="color:var(--bad)" data-act="rmdev" data-id="${esc(id)}">Entfernen</button>`:""}</div></div>`).join(""):'<div class="muted">Lade …</div>'}</section>
+ <section class="panel stack"><h3>Neues Gerät einladen</h3><p class="muted" style="margin:0;font-size:.9rem">Code auf dem neuen Gerät unter „Einer Familie beitreten“ eingeben. Gilt 24 Stunden und nur einmal.</p>
+  <div class="grid2"><button class="btn btn-sm" data-act="invite" data-role="parent">Eltern-Gerät</button><button class="btn btn-sm" data-act="invite" data-role="mission">Mission-Gerät</button></div>
+  ${lastInvite&&lastInvite.exp>Date.now()?`<div class="code">${lastInvite.code.slice(0,4)} ${lastInvite.code.slice(4)}</div><div class="muted" style="text-align:center;font-size:.85rem">Für ein ${RN[lastInvite.role]} · gültig bis ${clock(lastInvite.exp)} Uhr morgen</div>`:""}</section>
+ <section class="panel stack"><h3>Wie die Geräte sich unterscheiden</h3><div class="muted" style="font-size:.9rem"><b>Mission-Gerät:</b> Alarm, Funksprüche, Ablenkungs-Messung. Eltern-Aktionen nur mit PIN.<br><b>Eltern-Gerät:</b> Live-Ansicht, bestätigt Tabletten und Belohnungen ohne PIN, keine Alarme.</div></section>
+ <button class="btn" data-act="leave" style="color:var(--bad)">Dieses Gerät abmelden</button>`;}
+
+/* ============ Elternbereich ============ */
+let parentOpen=false;
+function vParent(){const s=S.settings;
+ return header("Elternbereich",true)+`
+ <section class="panel stack"><h3>Mission</h3>
+  <label class="f">Name des Kindes<input id="p-kid" value="${esc(s.kid||"")}"></label>
+  <div class="grid2"><label class="f">Losgehzeit<input type="time" id="p-leave" value="${esc(s.leave)}"></label><label class="f">Puffer (Min)<input type="number" id="p-buffer" min="0" max="30" value="${s.buffer}"></label></div>
+  <div class="grid2"><label class="f">Weckzeit<select id="p-wm"><option value="auto" ${s.wakeMode==="auto"?"selected":""}>Berechnet</option><option value="fix" ${s.wakeMode==="fix"?"selected":""}>Fest</option></select></label><label class="f">Feste Weckzeit<input type="time" id="p-wf" value="${esc(s.wakeFix)}"></label></div>
+  <label class="f">Liegezeit nach der ersten Tablette<select id="p-lie"><option value="auto" ${s.lieMode==="auto"?"selected":""}>Automatisch: 5 oder 10 Min nach Leistung</option><option value="fix5" ${s.lieMode==="fix5"?"selected":""}>Immer 5 Min</option><option value="fix10" ${s.lieMode==="fix10"?"selected":""}>Immer 10 Min</option></select></label>
+  <div class="grid2"><label class="f">Tablette 1 (Wecken)<input id="p-med1" value="${esc(s.med1)}"></label><label class="f">Tablette 2 (Frühstück)<input id="p-med2" value="${esc(s.med2)}"></label></div>
+  <label class="f">Tablette 2 frühestens … Min vor der Losgehzeit (0 = keine Sperre)<input type="number" id="p-m2gap" min="0" max="120" value="${s.med2Gap}"></label>
+  <label class="f">Systemcheck (ein Punkt pro Zeile)<textarea id="p-checks">${esc(s.checks.join("\n"))}</textarea></label>
+  <div class="grid2"><label class="f">Sounds (dieses Gerät)<select id="p-sound"><option value="1" ${DEV.sound?"selected":""}>An</option><option value="0" ${DEV.sound?"":"selected"}>Aus</option></select></label><label class="f">Funksprüche (Stimme)<select id="p-voice"><option value="1" ${DEV.voice?"selected":""}>An</option><option value="0" ${DEV.voice?"":"selected"}>Aus</option></select></label></div>
+ </section>
+ <section class="panel stack"><h3>Belohnungen</h3><p class="muted" style="margin:0;font-size:.88rem"><b>Täglich:</b> einlösbar am Abend eines pünktlichen Tages, wenn die Serie mindestens so lang ist. <b>Meilenstein:</b> einmal alle N Serien-Tage. XP-Kosten sind optional (0 = keine).</p>
+  <div class="list" id="p-rw">${s.rewards.map(rw=>rwRow(rw)).join("")}</div><button class="btn btn-sm" data-act="rwadd">+ Belohnung hinzufügen</button></section>
+ <button class="btn btn-cyan" data-act="psave">Einstellungen speichern</button>
+ <section class="panel stack"><h3>Punkte</h3><div class="row" style="flex-wrap:nowrap"><input type="number" id="p-xp" placeholder="z. B. 20 oder -20" style="flex:1"><button class="btn btn-sm" data-act="pxp">Buchen</button></div><div class="muted" style="font-size:.85rem">Aktuell ${S.xp} XP zum Einlösen, ${S.xpTotal} XP gesamt.</div></section>
+ <section class="panel stack"><h3>Werkzeuge</h3>
+  <button class="btn" data-act="practice">Probelauf starten (zählt nicht)</button>
+  <button class="btn" data-act="devices">Geräte &amp; Familie</button></section>
+ <section class="panel stack"><h3>Effekte testen</h3><div class="grid2">
+  <button class="btn btn-sm" data-act="pv" data-k="ghost">Geist geschlagen</button><button class="btn btn-sm" data-act="pv" data-k="pb">Neue Bestzeit</button>
+  <button class="btn btn-sm" data-act="pv" data-k="launch">Raketenstart</button><button class="btn btn-sm" data-act="pv" data-k="alarm">Weck-Alarm</button>
+  <button class="btn btn-sm" data-act="pv" data-k="radio">Funkspruch</button><button class="btn btn-sm" data-act="pv" data-k="step">Small Step</button></div>
+  <button class="btn" data-act="pin">Eltern-PIN ändern</button>
+  <button class="btn" data-act="wipe" style="color:var(--bad)">Fortschritt zurücksetzen</button></section>
+ <p class="muted" style="font-size:.8rem;margin:0">Funksprüche: NASA-Originalaufnahmen via Wikimedia Commons – Apollo 8 Liftoff (1968), Apollo 11 „The Eagle has landed“ und „One small step“ (1969), Apollo 13 „Houston, we've had a problem“ (1970).</p>
+ <p class="muted" style="font-size:.8rem;margin:0">Die App erinnert nur und protokolliert. Medikamente und Zeiten wie ärztlich verordnet.</p>`;}
+function rwRow(rw){return`<div class="stack rw" data-id="${esc(rw.id)}" style="border-top:1px solid var(--line);padding-top:10px"><input class="rw-name" value="${esc(rw.name)}" aria-label="Name der Belohnung"><div class="grid2"><label class="f">Art<select class="rw-per"><option value="tag" ${rw.per==="tag"?"selected":""}>Täglich</option><option value="meilenstein" ${rw.per==="meilenstein"?"selected":""}>Meilenstein</option></select></label><label class="f">Serie (Tage)<input type="number" class="rw-streak" value="${rw.streak}" min="1" max="100"></label></div><label class="f">XP-Kosten<input type="number" class="rw-cost" value="${rw.cost||0}" min="0"></label><button class="btn btn-sm btn-ghost" data-act="rwdel" style="color:var(--bad)">Entfernen</button></div>`;}
+function readRewards(){return[...document.querySelectorAll("#p-rw .rw")].map(el=>({id:el.dataset.id,name:el.querySelector(".rw-name").value.trim()||"Belohnung",per:el.querySelector(".rw-per").value,streak:Math.max(1,parseInt(el.querySelector(".rw-streak").value)||1),cost:Math.max(0,parseInt(el.querySelector(".rw-cost").value)||0)}));}
+function saveParent(){const s=S.settings;s.leave=$("#p-leave").value||s.leave;s.buffer=Math.max(0,Math.min(30,parseInt($("#p-buffer").value)||0));s.lieMode=$("#p-lie").value;s.wakeMode=$("#p-wm").value;s.wakeFix=$("#p-wf").value||s.wakeFix;
+ s.med1=$("#p-med1").value.trim()||"Tablette 1";s.med2=$("#p-med2").value.trim()||"Tablette 2";s.med2Gap=Math.max(0,Math.min(120,parseInt($("#p-m2gap").value)||0));s.checks=$("#p-checks").value.split("\n").map(x=>x.trim()).filter(Boolean);if(!s.checks.length)s.checks=["Brille auf"];
+ DEV.sound=$("#p-sound").value==="1";DEV.voice=$("#p-voice").value==="1";saveDev();s.kid=$("#p-kid").value.trim()||s.kid;s.rewards=readRewards();save();SFX.coin();toast("Gespeichert");}
+
+/* ============ Events ============ */
+document.addEventListener("click",async e=>{const t=e.target.closest("[data-act]");if(!t)return;const a=t.dataset.act;audioInit();
+ if(a!=="sound")SFX.tap();
+ switch(a){
+  case"home":go("home");break;
+  case"unlock":render();break;
+  case"devices":go("devices");break;
+  case"mkfam":{const role=$("#s-role").value,name=$("#s-name").value.trim()||"Gerät",kid=$("#s-kid").value.trim();createFamily(role,name,kid);break;}
+  case"join":{const c=$("#s-code").value,name=$("#s-jname").value.trim()||"Gerät";if(c.replace(/\s/g,"").length<8){toast("Bitte den 8-stelligen Code eingeben");break;}joinFamily(c,name);break;}
+  case"invite":{try{const code=await createInvite(t.dataset.role);if(code){lastInvite={code,role:t.dataset.role,exp:Date.now()+24*3600e3};render();}}catch(e){syncErr(e);toast("Einladung fehlgeschlagen: "+(e.code||e.message));}break;}
+  case"rmdev":{const id=t.dataset.id;const ok=await modal(`<h2>Gerät entfernen?</h2><p class="muted" style="margin:0">Es kann danach nicht mehr auf die Daten zugreifen.</p><button class="btn" data-v="0">Abbrechen</button><button class="btn" data-v="1" style="color:var(--bad)">Entfernen</button>`,(b,close)=>b.addEventListener("click",ev=>{const k=ev.target.closest("[data-v]");if(k)close(k.dataset.v==="1");}));if(ok){try{await removeMember(id);}catch(e){toast("Fehlgeschlagen: "+(e.code||e.message));}}break;}
+  case"setrole":{try{await setRole(t.dataset.id,t.dataset.role);toast("Rolle geändert");}catch(e){toast("Fehlgeschlagen: "+(e.code||e.message));}break;}
+  case"leave":{const ok=await modal(`<h2>Dieses Gerät abmelden?</h2><p class="muted" style="margin:0">Die Daten bleiben in der Familie. Zum erneuten Koppeln brauchst du einen neuen Code.</p><button class="btn" data-v="0">Abbrechen</button><button class="btn" data-v="1" style="color:var(--bad)">Abmelden</button>`,(b,close)=>b.addEventListener("click",ev=>{const k=ev.target.closest("[data-v]");if(k)close(k.dataset.v==="1");}));if(ok){try{await removeMember(uid);}catch(e){}leaveLocal("Gerät abgemeldet");}break;}
+  case"start":startMission();break;
+  case"shop":go("shop");break;case"log":go("log");break;case"badges":go("badges");break;
+  case"openrep":go("report",+t.dataset.i);break;
+  case"sound":DEV.sound=!DEV.sound;saveDev();render();SFX.coin();break;
+  case"parent":if(await parentOk("Elternbereich"))go("parent");break;
+  case"med1":confirmMed1();break;
+  case"up":getUp();break;
+  case"med2":confirmMed2();break;
+  case"chk":{const i=+t.dataset.i;S.run.checks[i]=!S.run.checks[i];if(S.settings.checks.every((c,j)=>S.run.checks[j])){if(!S.run.checksAt)S.run.checksAt=Date.now();}else S.run.checksAt=null;save();render();if(S.run.checks[i]){SFX.coin();celebrate(document.querySelector(`[data-act=chk][data-i="${i}"]`));}break;}
+  case"next":t.disabled=true;completeTask(t);break;
+  case"abort":if(await parentOk("Mission abbrechen?","Der heutige Lauf wird verworfen.")){alarmStop();S.run=null;save();releaseAwake();go("home");}break;
+  case"redeem":redeem(t.dataset.id);break;
+  case"freeze":buyFreeze();break;
+  case"pv":{const k=t.dataset.k;
+   if(k==="ghost")bigWin("ghost",95,23,"Vorschau · Zähne putzen");
+   else if(k==="pb")bigWin("pb",184,41,"Vorschau · Anziehen");
+   else if(k==="launch")launchAnim(()=>{SFX.fanfare();setTimeout(()=>celebrate(),200);});
+   else if(k==="alarm"){const d=playClip("problem");setTimeout(()=>{alarmStart();setTimeout(alarmStop,3500);},d?d*1000+600:0);}
+   else if(k==="radio")radio("Houston an "+KID()+": Funkcheck. Hörst du mich? Over.");
+   else if(k==="step"){if(!playClip("smallstep"))toast("Clip noch nicht geladen – gleich nochmal tippen");}
+   break;}
+  case"psave":saveParent();break;
+  case"rwadd":{const rw={id:"r"+Date.now(),name:"Neue Belohnung",per:"tag",streak:1,cost:0};$("#p-rw").insertAdjacentHTML("beforeend",rwRow(rw));break;}
+  case"rwdel":t.closest(".rw").remove();break;
+  case"pxp":{const n=parseInt($("#p-xp").value);if(!n)break;S.xp=Math.max(0,S.xp+n);if(n>0)S.xpTotal+=n;save();render();toast((n>0?"+":"")+n+" XP gebucht");break;}
+  case"practice":{saveParent();const p=plan();S.run={date:dayKey(),practice:true,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};save();keepAwake();go("mission");radio("Probelauf. Mission Control ist bereit.");break;}
+  case"pin":if(await setupPin())render();break;
+  case"wipe":{const ok=await modal(`<h2>Fortschritt zurücksetzen?</h2><p class="muted" style="margin:0">Logbuch, Punkte, Serie, Abzeichen und eingelöste Belohnungen werden auf allen Geräten gelöscht. Einstellungen und PIN bleiben.</p><button class="btn" data-v="0">Abbrechen</button><button class="btn" data-v="1" style="color:var(--bad)">Ja, alles löschen</button>`,(b,close)=>b.addEventListener("click",ev=>{const k=ev.target.closest("[data-v]");if(k)close(k.dataset.v==="1");}));
+   if(ok){const keep=S.settings;S=fresh();S.settings=keep;migrate();save();go("home");toast("Fortschritt zurückgesetzt");}break;}
+ }});
+document.addEventListener("visibilitychange",()=>{const r=S.run;if(!r||!isMission())return;const now=Date.now();
+ if(document.hidden){if(r.idx>=2)r.hiddenSince=now;save();}
+ else{if(r.hiddenSince){r.hidden=(r.hidden||0)+(now-r.hiddenSince);r.hiddenSince=null;save();}keepAwake();
+  if(A.ctx&&A.ctx.state!=="running")A.ctx.resume();
+  if(r.idx===1&&!r.upAt&&now>=r.bedEnd){if(!r.alarmAt){r.alarmAt=r.bedEnd;save();}startAlarm();render();}}});
+if(S.run&&S.run.idx===1&&S.run.alarmAt&&!S.run.upAt){/* Alarm läuft nach Neuladen weiter, sobald getippt wird */}
+render();initSync();
+</script>
+</body>
+</html>
