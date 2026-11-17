@@ -383,7 +383,8 @@ function weekStrip(){const now=new Date();const dow=(now.getDay()+6)%7;const mon
   return`<div class="wd ${k===dayKey()?"today":""}"><span>${n}</span>${state==="on"?flame(26,true):state==="ice"?'<b class="ice">❄</b>':state==="miss"?'<b class="miss">·</b>':flame(26,false)}</div>`;}).join("");}
 
 /* Plan: Liegezeit + Weckzeit (berechnet aus den letzten 3 echten Missionen) */
-function plan(){const r=real();const s=S.settings;let lie,why;
+function planBase(){const now=Date.now();return(now>leaveTs(now)||real().some(h=>h.date===dayKey(now)))?now+864e5:now;}
+function plan(){const r=real();const s=S.settings;let lie,why;const base=planBase();const tomorrow=base!==Date.now()&&dayKey(base)!==dayKey();
  if(s.lieMode==="fix5"){lie=5;why="fest eingestellt";}
  else if(s.lieMode==="fix10"){lie=10;why="fest eingestellt";}
  else{const last=r[r.length-1];const ok3=r.slice(-3).filter(h=>h.onTime).length;
@@ -392,13 +393,15 @@ function plan(){const r=real();const s=S.settings;let lie,why;
   else{lie=5;why=last.onTime?"Noch "+(2-ok3)+" pünktlicher Start bis zum 10-Minuten-Bonus":"Letzte Mission war knapp – mit einem pünktlichen Start holst du dir den Bonus zurück";}}
  let routine=0;const last3=r.slice(-3);const med=id=>{const v=last3.map(h=>h.steps&&h.steps[id]&&h.steps[id].dur).filter(Boolean);return v.length?median(v):DEF_DUR[id];};
  TASKS.forEach(id=>{if(id!=="check")routine+=med(id);});routine+=Math.max((+s.finalMin||10)*60,med("check"));
- const pill=60,buf=(+s.buffer||0)*60;const lt=leaveTs();
- const once=s.wakeOnce&&s.wakeOnce.date===dayKey()&&Date.now()<lt?s.wakeOnce.time:null;
+ const pill=60,buf=(+s.buffer||0)*60;const lt=leaveTs(base);
+ const once=s.wakeOnce&&s.wakeOnce.date===dayKey(base)&&Date.now()<lt?s.wakeOnce.time:null;
  if(s.wakeMode==="fix"||once){const[h,m]=(once||s.wakeFix).split(":").map(Number);const d=new Date(lt);d.setHours(h,m,0,0);const wake=d.getTime();
   const slack=(lt-wake)/1000-pill-routine-buf;if(lie===10&&slack<600){lie=5;why="Weckzeit ist fest – heute reicht die Zeit nur für 5 Minuten Liegezeit";}
-  return{lie,why,routine,buf,wake,total:(lt-wake)/1000,estimated:last3.length===0,fixed:true,once:!!once};}
- const total=pill+lie*60+routine+buf;const wake=lt-total*1000;
- return{lie,why,routine,buf,wake,total,estimated:last3.length===0};}
+  return{lie,why,routine,buf,wake,total:(lt-wake)/1000,estimated:last3.length===0,fixed:true,once:!!once,tomorrow};}
+ // Freizeit vom letzten Tag: 70 % werden über die Routine-Zeiten zur späteren Weckzeit, 30 % bleiben als Extra-Puffer
+ const lastR=r[r.length-1];const unused=lastR?(lastR.free!==undefined?(lastR.free||0):Math.max(0,(lastR.early||0)*60)):0;const keep=Math.round(unused*0.3/60)*60;
+ const total=pill+lie*60+routine+buf+keep;const wake=lt-total*1000;
+ return{lie,why,routine,buf,wake,total,estimated:last3.length===0,keep,tomorrow};}
 
 /* ============ Sound ============ */
 const A={ctx:null,master:null,nb:null};
@@ -574,9 +577,10 @@ function vHome(){const p=plan();const rk=rankOf(S.xpTotal);const st=S.streak.cou
  </section>
  <button class="btn btn-go" data-act="start">${doneToday?"Neue Mission (Probelauf)":"Mission starten"}</button>
  <section class="panel stack">
-  <div class="row between"><h3>Flugplan</h3>${p.estimated?'<span class="chip warn">Startwerte geschätzt</span>':'<span class="chip">Basis: letzte '+Math.min(3,real().length)+' Missionen</span>'}</div>
+  <div class="row between"><h3>Flugplan ${p.tomorrow?"morgen":"heute"}</h3>${p.estimated?'<span class="chip warn">Startwerte geschätzt</span>':'<span class="chip">Basis: letzte '+Math.min(3,real().length)+' Missionen</span>'}</div>
   <div class="kv"><div><div class="v">${clock(p.wake)}</div><div class="k">Wecken${p.once?" (nur heute)":p.fixed?" (fest)":""}</div></div><div><div class="v">${p.lie} Min</div><div class="k">Liegezeit</div></div><div><div class="v">${Math.round(p.routine/60)} Min</div><div class="k">Routine</div></div></div>
   <div class="muted" style="font-size:.9rem">${p.lie===10?'<span class="chip gold">Bonus</span> ':""}${esc(p.why)}</div>
+  ${p.keep?`<div class="muted" style="font-size:.9rem">Davon ${Math.round(p.keep/60)} Min Extra-Puffer (30 % der letzten Freizeit)</div>`:""}
   ${+S.settings.med2Gap>0?`<div class="muted" style="font-size:.9rem">${esc(S.settings.med2)} frühestens um <b class="mono">${clock(med2Ts(null))}</b></div>`:""}
  </section>
  <section class="panel stack">
@@ -631,7 +635,7 @@ function update(){const now=Date.now();
  if(view==="home"){const lt=leaveTs();let target=lt,sub="";if(now>lt){target=lt+864e5;}
   const diff=(target-now)/1000;const h=Math.floor(diff/3600),m=Math.floor(diff%3600/60),s=Math.floor(diff%60);
   const cd=$("#cd");if(cd)cd.textContent=(h?h+":"+pad(m):m)+":"+pad(s);
-  const p=plan();const cs=$("#cdsub");if(cs)cs.textContent=now>lt?"Start morgen um "+S.settings.leave+" Uhr · Wecken "+clock(p.wake+864e5):"bis zum Start · Weckzeit laut Plan "+clock(p.wake);return;}
+  const p=plan();const cs=$("#cdsub");if(cs)cs.textContent=now>lt?"Start morgen um "+S.settings.leave+" Uhr · Wecken "+clock(p.wake):p.tomorrow?"bis zum Start · Mission erfüllt! Wecken morgen "+clock(p.wake):"bis zum Start · Weckzeit laut Plan "+clock(p.wake);return;}
  const r=S.run;if(!r)return;const steps=stepsDef(),st=steps[r.idx];
  const tl=$("#tl");if(tl){const left=(leaveTs(r.start)-now)/1000;tl.innerHTML=left>=0?`<span style="color:var(--good)">T−${fmt(left)}</span>`:`<span style="color:var(--warn)">T+${fmt(-left)}</span>`;}
  const C=2*Math.PI*54;
@@ -718,7 +722,7 @@ function finish(){const r=S.run,now=Date.now();r.done=now;
  // Abzeichen
  day.newBadges=[];if(!r.practice){const nb=id=>{if(!S.badges[id]){S.badges[id]=day.date;day.newBadges.push(id);}};
   nb("first");if(st>=3)nb("streak3");if(st>=5)nb("streak5");if(st>=10)nb("streak10");if(S.stats.pbs>=5)nb("pb5");if(focusAll)nb("focus");if(early>=10)nb("early10");if(S.stats.honest>=3)nb("honest3");}
- const p=plan();day.next={lie:p.lie,why:p.why,wake:p.wake+(Date.now()>leaveTs()?864e5:0)};
+ const p=plan();day.next={lie:p.lie,why:p.why,wake:p.wake,keep:p.keep||0};
  S.run=null;save();releaseAwake();
  launchAnim(()=>{go("report",S.history.length-1);SFX.fanfare();setTimeout(()=>playClip("smallstep"),2600);setTimeout(()=>celebrate(document.querySelector(".hero-done")),200);});}
 function stepName(id){const s=stepsDef().find(x=>x.id===id);return s?s.short:id;}
