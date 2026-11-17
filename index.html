@@ -254,12 +254,15 @@ function stepsDef(){const s=S.settings;return[
  {id:"teeth",kind:"task",title:"Zähne putzen",short:"Zähne",mc:"Phase zwei: Zahnschild polieren. Zwei Minuten, die Zahnbürste zählt mit."},
  {id:"dress",kind:"task",title:"Anziehen",short:"Anziehen",mc:"Phase drei: Raumanzug anlegen."},
  {id:"breakfast",kind:"breakfast",title:"Frühstück + "+s.med2,short:"Frühstück",mc:"Phase vier: Treibstoff tanken. Und die zweite Tablette nicht vergessen."},
- {id:"check",kind:"check",title:"Systemcheck",short:"Check",mc:"Letzte Phase: Systemcheck vor dem Start."},
+ ...(withFree()?[{id:"free",kind:"free",title:"Freizeit",short:"Freizeit",mc:"Alle Systeme bereit. Du hast Freizeit bis zum finalen Countdown!"}]:[]),
+ {id:"check",kind:"check",title:withFree()?"Finaler Countdown":"Systemcheck",short:"Check",mc:withFree()?"T minus "+(+S.settings.finalMin||10)+" Minuten. Finaler Countdown: Systemcheck!":"Letzte Phase: Systemcheck vor dem Start."},
 ];}
+function withFree(){return S.run?S.run.v===2:true;}
+function finalTs(r){return leaveTs((r&&r.start)||Date.now())-(+S.settings.finalMin||10)*60000;}
 
 /* ============ Zustand & Speicher ============ */
 const LS="bosse-mission-v1";
-function fresh(){return{v:1,updated:0,settings:{leave:"07:20",buffer:3,lieMode:"auto",pin:null,sound:true,voice:true,med1:"Tablette 1",med2:"Tablette 2",kid:"Kommandant",checks:["Brille auf","Apple Watch dran"],
+function fresh(){return{v:1,updated:0,settings:{leave:"07:20",buffer:3,lieMode:"auto",finalMin:10,pin:null,sound:true,voice:true,med1:"Tablette 1",med2:"Tablette 2",kid:"Kommandant",checks:["Brille auf","Apple Watch dran"],
  wakeMode:"auto",wakeFix:"06:15",med2Gap:20,rewards:defRewards()},
  xp:0,xpTotal:0,badges:{},stats:{pbs:0,honest:0},history:[],redemptions:[],run:null,streak:{count:0,best:0,freezes:0,start:null},marks:{}};}
 function defRewards(){return[
@@ -270,6 +273,7 @@ function migrate(){if(!S.streak){let c=0,b=0,start=null;S.history.filter(h=>!h.p
  if(!S.marks)S.marks={};if(!S.settings.wakeMode){S.settings.wakeMode="auto";S.settings.wakeFix="06:15";}
  if(S.settings.rewards.some(r=>!r.per))S.settings.rewards=defRewards();
  if(S.settings.med2Gap===undefined)S.settings.med2Gap=20;
+ if(S.settings.finalMin===undefined)S.settings.finalMin=10;
  if(!S.settings.wakeOnceInit){S.settings.wakeOnceInit=true;S.settings.wakeOnce={date:"2026-11-17",time:"06:15"};}}
 let S=fresh();
 try{const raw=localStorage.getItem(LS);if(raw)S=Object.assign(fresh(),JSON.parse(raw));}catch(e){}
@@ -386,8 +390,8 @@ function plan(){const r=real();const s=S.settings;let lie,why;
   if(!last){lie=10;why="Startbonus für die erste Mission";}
   else if(last.onTime&&ok3>=Math.min(2,r.length)){lie=10;why="Bonus: Letzte Mission pünktlich und "+ok3+" von "+Math.min(3,r.length)+" der letzten Starts pünktlich";}
   else{lie=5;why=last.onTime?"Noch "+(2-ok3)+" pünktlicher Start bis zum 10-Minuten-Bonus":"Letzte Mission war knapp – mit einem pünktlichen Start holst du dir den Bonus zurück";}}
- let routine=0;const last3=r.slice(-3);
- TASKS.forEach(id=>{const v=last3.map(h=>h.steps&&h.steps[id]&&h.steps[id].dur).filter(Boolean);routine+=v.length?median(v):DEF_DUR[id];});
+ let routine=0;const last3=r.slice(-3);const med=id=>{const v=last3.map(h=>h.steps&&h.steps[id]&&h.steps[id].dur).filter(Boolean);return v.length?median(v):DEF_DUR[id];};
+ TASKS.forEach(id=>{if(id!=="check")routine+=med(id);});routine+=Math.max((+s.finalMin||10)*60,med("check"));
  const pill=60,buf=(+s.buffer||0)*60;const lt=leaveTs();
  const once=s.wakeOnce&&s.wakeOnce.date===dayKey()&&Date.now()<lt?s.wakeOnce.time:null;
  if(s.wakeMode==="fix"||once){const[h,m]=(once||s.wakeFix).split(":").map(Number);const d=new Date(lt);d.setHours(h,m,0,0);const wake=d.getTime();
@@ -594,6 +598,11 @@ function vMission(){const r=S.run;if(!r)return vHome();const steps=stepsDef();co
  let body="";
  if(st.kind==="med"){body=`<div class="panel stack" style="text-align:center"><div class="eyebrow">Startpunkt des Tages</div><h2>${esc(S.settings.med1)} genommen?</h2><p class="muted" style="margin:0">Mama oder Papa bestätigen mit der Eltern-PIN. Dann startet die Mission.</p></div>
   <button class="btn btn-go" data-act="med1">Eltern bestätigen</button>`;}
+ else if(st.kind==="free"){const j=JOKES[(new Date().getDate()*7+r.idx)%JOKES.length];
+  body=`<div class="ringwrap">${ring()}<div class="center"><div class="eyebrow">Freizeit bis ${clock(finalTs(r))}</div><div class="t" id="tm">--:--</div><div class="muted">dann: finaler Countdown</div></div></div>
+   <div class="panel stack" style="text-align:center"><h3>Stark, ${esc(KID())}! Du bist früh fertig.</h3><div class="muted">Lesen, basteln, chillen – Houston meldet sich, wenn der finale Countdown startet.</div></div>
+   <div class="joke"><div>${esc(j[0])}</div><div class="punch">${esc(j[1])}</div></div>
+   <button class="btn" data-act="freedone">Ich will schon jetzt los machen</button>`;}
  else if(st.kind==="bed"){const alarm=r.alarmAt&&!r.upAt;
   body=alarm?`<div class="panel stack" style="text-align:center;border-color:var(--bad)"><div class="eyebrow" style="color:var(--bad)">T-0 · Alarm</div><h1>AUFSTEHEN!</h1><div class="countdown" id="react">0:00</div><p class="muted" style="margin:0">Die Uhr misst, wie schnell du auf den Beinen bist.</p></div>
    <button class="btn btn-go" data-act="up">Ich stehe!</button>`
@@ -632,6 +641,8 @@ function update(){const now=Date.now();
   else if(!r.upAt){const e=$("#react");if(e)e.textContent=fmt((now-r.alarmAt)/1000);}
   return;}
  if(st.kind==="med")return;
+ if(st.kind==="free"){const ft=finalTs(r),left=(ft-now)/1000,tot=Math.max(1,(ft-r.stepStart)/1000);const tm=$("#tm");if(tm)tm.textContent=fmt(left);const arc=$("#arc");if(arc){arc.setAttribute("stroke","#5ff2a0");arc.style.strokeDashoffset=C*(1-Math.max(0,left)/tot);}
+  if(left<=0&&!r.freeEnding){r.freeEnding=true;freeDone();}return;}
  if((st.kind==="breakfast"||st.kind==="check")&&!r.med2){const lk=med2Locked(r);const cd=$("#m2cd");if(cd)cd.textContent=fmt((med2Ts(r)-now)/1000);
   if(r.m2lk&&!lk){r.m2lk=false;render();SFX.coin();radio("Mission Control: Jetzt ist Zeit für "+S.settings.med2+"!");return;}}
  const el=(now-r.stepStart)/1000;const tm=$("#tm");if(tm)tm.textContent=fmt(el);
@@ -647,7 +658,7 @@ function update(){const now=Date.now();
 async function startMission(){audioInit();const doneToday=real().some(h=>h.date===dayKey());
  if(!S.settings.pin&&isMission()){const ok=await setupPin();if(!ok)return;}
  const p=plan();
- S.run={date:dayKey(),practice:doneToday,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};
+ S.run={v:2,date:dayKey(),practice:doneToday,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};
  save();keepAwake();go("mission");radio("Mission Control an "+KID()+". Guten Morgen! Zündsequenz bereit.");}
 async function confirmMed1(){if(!await parentOk(S.settings.med1+" bestätigen",""+KID()+" hat die Tablette genommen."))return;
  const r=S.run,now=Date.now();r.start=now;r.steps.med1={dur:0,confirmed:true};r.idx=1;r.bedEnd=now+r.lie*60000;r.stepStart=now;save();SFX.done();render();
@@ -671,8 +682,12 @@ async function completeTask(btn){const r=S.run,steps=stepsDef(),st=steps[r.idx],
  if(st.kind==="breakfast"){rec.med2=!!r.med2;if(!r.med2)rec.med2Deferred=true;}
  if(r.idx===steps.length-1){finish();return;}
  nextStep(false);}
-function nextStep(fromBed){const r=S.run,steps=stepsDef();r.idx++;r.stepStart=Date.now();r.hidden=0;r.hiddenSince=null;r.alerts=0;r.lastAlert=null;r.ghostPassed=false;save();render();
+function nextStep(fromBed){const r=S.run,steps=stepsDef();r.idx++;
+ if(steps[r.idx]&&steps[r.idx].kind==="free"&&Date.now()>finalTs(r)-120000){r.steps.free={dur:0,skipped:true};r.idx++;}
+ if(steps[r.idx]&&steps[r.idx].kind==="check"&&withFree())SFX.beep(true);
+ r.stepStart=Date.now();r.hidden=0;r.hiddenSince=null;r.alerts=0;r.lastAlert=null;r.ghostPassed=false;save();render();
  const st=steps[r.idx];const g=ghostFor(st.id);radio(st.mc.replace("Mission Control an "+KID()+": ","")+(g?" Dein Geist von gestern: "+spoken(g)+".":""));}
+function freeDone(){const r=S.run;if(!r)return;const st=stepsDef()[r.idx];if(!st||st.kind!=="free")return;r.steps.free={dur:Math.round((Date.now()-r.stepStart)/1000)};r.freeEnding=false;nextStep(false);}
 function spoken(sec){const m=Math.floor(sec/60),s=Math.round(sec%60);return(m?m+" Minute"+(m===1?"":"n")+" ":"")+(s?s+" Sekunden":"");}
 function houston(){SFX.quindar(2525);radio(pick(["Houston an "+KID()+": Bist du noch auf Kurs?","Mission Control hier. Alles in Ordnung bei dir?",""+KID()+", hier spricht Houston. Wir brauchen dich in der Umlaufbahn!"]));
  modal(`<div class="eyebrow">Houston an ${esc(KID())}</div><h2>Bist du noch auf Kurs?</h2><p class="muted" style="margin:0">Diese Phase dauert länger als sonst. Kein Problem, weiter geht's!</p><button class="btn btn-cyan" data-v="1">Bin dran!</button>`,(b,close)=>b.addEventListener("click",e=>{if(e.target.closest("[data-v]"))close(1);}));}
@@ -680,7 +695,8 @@ function houston(){SFX.quindar(2525);radio(pick(["Houston an "+KID()+": Bist du 
 function finish(){const r=S.run,now=Date.now();r.done=now;
  const prevReal=real();const lt=leaveTs(r.start);const onTime=now<=lt;const early=(lt-now)/60000;
  const day={date:r.date,practice:r.practice,start:r.start,upAt:r.upAt,done:now,leave:S.settings.leave,lie:r.lie,lieWhy:r.lieWhy,plannedWake:r.plannedWake,steps:r.steps,onTime,early:Math.round(early*10)/10};
- day.total=Math.round((now-(r.upAt||r.start))/1000);
+ const freeSec=(r.steps.free&&r.steps.free.dur)||0;day.free=freeSec;
+ day.total=Math.round((now-(r.upAt||r.start))/1000)-freeSec;
  // Punkte
  const items=[];const add=(n,t)=>items.push([n,t]);
  add(20,"Beide Tabletten bestätigt");
@@ -706,7 +722,7 @@ function finish(){const r=S.run,now=Date.now();r.done=now;
  S.run=null;save();releaseAwake();
  launchAnim(()=>{go("report",S.history.length-1);SFX.fanfare();setTimeout(()=>playClip("smallstep"),2600);setTimeout(()=>celebrate(document.querySelector(".hero-done")),200);});}
 function stepName(id){const s=stepsDef().find(x=>x.id===id);return s?s.short:id;}
-function insights(day){const out=[];const t=TASKS.map(id=>({id,s:day.steps[id]})).filter(x=>x.s);
+function insights(day){const out=[];if((day.free||0)>=180)out.push(["good","Du hattest dir "+Math.round(day.free/60)+" Minuten Freizeit erarbeitet!"]);const t=TASKS.map(id=>({id,s:day.steps[id]})).filter(x=>x.s);
  const withG=t.filter(x=>x.s.ghost);
  if(!withG.length)out.push(["good","Erster Flug im Logbuch! Morgen trittst du gegen diese Zeiten an."]);
  else{const gain=withG.map(x=>({id:x.id,d:x.s.ghost-x.s.dur})).sort((a,b)=>b.d-a.d);
@@ -731,7 +747,7 @@ function vReport(){const day=S.history[viewArg];if(!day)return vHome();
   <div class="eyebrow">${day.practice?"Probelauf · zählt nicht":dayLabel(day.date)+" · Missionsbericht"}</div>
   <h1>${day.onTime?"Mission erfüllt!":"Gelandet!"}</h1>
   <div class="bigxp">+${day.practice?0:day.xp} XP</div>
-  <div class="row" style="justify-content:center"><span class="chip ${day.onTime?"good":"warn"}">Fertig um ${clock(day.done)}</span><span class="chip">Routine ${fmt(day.total)}</span>${day.streak>=2?`<span class="chip gold">Serie ${day.streak}</span>`:""}</div>
+  <div class="row" style="justify-content:center"><span class="chip ${day.onTime?"good":"warn"}">Fertig um ${clock(day.done)}</span><span class="chip">Routine ${fmt(day.total)}</span>${day.free>=60?`<span class="chip good">Freizeit ${Math.round(day.free/60)} Min</span>`:""}${day.streak>=2?`<span class="chip gold">Serie ${day.streak}</span>`:""}</div>
  </section>
  ${!day.practice?`<section class="panel streak-hero pop">${flame(48,day.streak>0)}<div><div class="mono" style="font-size:2.2rem;font-weight:700;line-height:1;color:${day.streak?"var(--orange)":"var(--muted)"}">${day.streak}</div><div class="eyebrow">${day.milestone?"Meilenstein erreicht!":day.freezeUsed?"Serie gerettet":"Tage-Serie"}</div></div></section>`:""}
  ${(day.newBadges||[]).map(id=>{const b=BADGES.find(x=>x.id===id);return b?`<div class="badge pop"><div class="medal">${esc(b.m)}</div><div><div class="eyebrow">Neues Abzeichen</div><b>${esc(b.n)}</b><div class="muted" style="font-size:.85rem">${esc(b.d)}</div></div></div>`:"";}).join("")}
@@ -802,6 +818,7 @@ function vParent(){const s=S.settings;
   <div class="grid2"><label class="f">Weckzeit<select id="p-wm"><option value="auto" ${s.wakeMode==="auto"?"selected":""}>Berechnet</option><option value="fix" ${s.wakeMode==="fix"?"selected":""}>Fest</option></select></label><label class="f">Feste Weckzeit<input type="time" id="p-wf" value="${esc(s.wakeFix)}"></label></div>
   <label class="f">Liegezeit nach der ersten Tablette<select id="p-lie"><option value="auto" ${s.lieMode==="auto"?"selected":""}>Automatisch: 5 oder 10 Min nach Leistung</option><option value="fix5" ${s.lieMode==="fix5"?"selected":""}>Immer 5 Min</option><option value="fix10" ${s.lieMode==="fix10"?"selected":""}>Immer 10 Min</option></select></label>
   <div class="grid2"><label class="f">Tablette 1 (Wecken)<input id="p-med1" value="${esc(s.med1)}"></label><label class="f">Tablette 2 (Frühstück)<input id="p-med2" value="${esc(s.med2)}"></label></div>
+  <label class="f">Finaler Countdown startet … Min vor der Losgehzeit<input type="number" id="p-final" min="3" max="30" value="${s.finalMin}"></label>
   <label class="f">Tablette 2 frühestens … Min vor der Losgehzeit (0 = keine Sperre)<input type="number" id="p-m2gap" min="0" max="120" value="${s.med2Gap}"></label>
   <label class="f">Systemcheck (ein Punkt pro Zeile)<textarea id="p-checks">${esc(s.checks.join("\n"))}</textarea></label>
   <div class="grid2"><label class="f">Sounds (dieses Gerät)<select id="p-sound"><option value="1" ${DEV.sound?"selected":""}>An</option><option value="0" ${DEV.sound?"":"selected"}>Aus</option></select></label><label class="f">Funksprüche (Stimme)<select id="p-voice"><option value="1" ${DEV.voice?"selected":""}>An</option><option value="0" ${DEV.voice?"":"selected"}>Aus</option></select></label></div>
@@ -824,7 +841,7 @@ function vParent(){const s=S.settings;
 function rwRow(rw){return`<div class="stack rw" data-id="${esc(rw.id)}" style="border-top:1px solid var(--line);padding-top:10px"><input class="rw-name" value="${esc(rw.name)}" aria-label="Name der Belohnung"><div class="grid2"><label class="f">Art<select class="rw-per"><option value="tag" ${rw.per==="tag"?"selected":""}>Täglich</option><option value="meilenstein" ${rw.per==="meilenstein"?"selected":""}>Meilenstein</option></select></label><label class="f">Serie (Tage)<input type="number" class="rw-streak" value="${rw.streak}" min="1" max="100"></label></div><label class="f">XP-Kosten<input type="number" class="rw-cost" value="${rw.cost||0}" min="0"></label><button class="btn btn-sm btn-ghost" data-act="rwdel" style="color:var(--bad)">Entfernen</button></div>`;}
 function readRewards(){return[...document.querySelectorAll("#p-rw .rw")].map(el=>({id:el.dataset.id,name:el.querySelector(".rw-name").value.trim()||"Belohnung",per:el.querySelector(".rw-per").value,streak:Math.max(1,parseInt(el.querySelector(".rw-streak").value)||1),cost:Math.max(0,parseInt(el.querySelector(".rw-cost").value)||0)}));}
 function saveParent(){const s=S.settings;s.leave=$("#p-leave").value||s.leave;s.buffer=Math.max(0,Math.min(30,parseInt($("#p-buffer").value)||0));s.lieMode=$("#p-lie").value;s.wakeMode=$("#p-wm").value;s.wakeFix=$("#p-wf").value||s.wakeFix;
- s.med1=$("#p-med1").value.trim()||"Tablette 1";s.med2=$("#p-med2").value.trim()||"Tablette 2";s.med2Gap=Math.max(0,Math.min(120,parseInt($("#p-m2gap").value)||0));s.checks=$("#p-checks").value.split("\n").map(x=>x.trim()).filter(Boolean);if(!s.checks.length)s.checks=["Brille auf"];
+ s.med1=$("#p-med1").value.trim()||"Tablette 1";s.med2=$("#p-med2").value.trim()||"Tablette 2";s.med2Gap=Math.max(0,Math.min(120,parseInt($("#p-m2gap").value)||0));s.finalMin=Math.max(3,Math.min(30,parseInt($("#p-final").value)||10));s.checks=$("#p-checks").value.split("\n").map(x=>x.trim()).filter(Boolean);if(!s.checks.length)s.checks=["Brille auf"];
  DEV.sound=$("#p-sound").value==="1";DEV.voice=$("#p-voice").value==="1";saveDev();s.kid=$("#p-kid").value.trim()||s.kid;s.rewards=readRewards();save();SFX.coin();toast("Gespeichert");}
 
 /* ============ Events ============ */
@@ -833,6 +850,7 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-act]
  switch(a){
   case"home":go("home");break;
   case"unlock":render();break;
+  case"freedone":freeDone();break;
   case"devices":go("devices");break;
   case"mkfam":{const role=$("#s-role").value,name=$("#s-name").value.trim()||"Gerät",kid=$("#s-kid").value.trim();createFamily(role,name,kid);break;}
   case"join":{const c=$("#s-code").value,name=$("#s-jname").value.trim()||"Gerät";if(c.replace(/\s/g,"").length<8){toast("Bitte den 8-stelligen Code eingeben");break;}joinFamily(c,name);break;}
@@ -865,7 +883,7 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-act]
   case"rwadd":{const rw={id:"r"+Date.now(),name:"Neue Belohnung",per:"tag",streak:1,cost:0};$("#p-rw").insertAdjacentHTML("beforeend",rwRow(rw));break;}
   case"rwdel":t.closest(".rw").remove();break;
   case"pxp":{const n=parseInt($("#p-xp").value);if(!n)break;S.xp=Math.max(0,S.xp+n);if(n>0)S.xpTotal+=n;save();render();toast((n>0?"+":"")+n+" XP gebucht");break;}
-  case"practice":{saveParent();const p=plan();S.run={date:dayKey(),practice:true,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};save();keepAwake();go("mission");radio("Probelauf. Mission Control ist bereit.");break;}
+  case"practice":{saveParent();const p=plan();S.run={v:2,date:dayKey(),practice:true,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};save();keepAwake();go("mission");radio("Probelauf. Mission Control ist bereit.");break;}
   case"pin":if(await setupPin())render();break;
   case"wipe":{const ok=await modal(`<h2>Fortschritt zurücksetzen?</h2><p class="muted" style="margin:0">Logbuch, Punkte, Serie, Abzeichen und eingelöste Belohnungen werden auf allen Geräten gelöscht. Einstellungen und PIN bleiben.</p><button class="btn" data-v="0">Abbrechen</button><button class="btn" data-v="1" style="color:var(--bad)">Ja, alles löschen</button>`,(b,close)=>b.addEventListener("click",ev=>{const k=ev.target.closest("[data-v]");if(k)close(k.dataset.v==="1");}));
    if(ok){const keep=S.settings;S=fresh();S.settings=keep;migrate();save();go("home");toast("Fortschritt zurückgesetzt");}break;}
