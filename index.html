@@ -392,7 +392,7 @@ function plan(){const r=real();const s=S.settings;let lie,why;const base=planBas
   else if(last.onTime&&ok3>=Math.min(2,r.length)){lie=10;why="Bonus: Letzte Mission pünktlich und "+ok3+" von "+Math.min(3,r.length)+" der letzten Starts pünktlich";}
   else{lie=5;why=last.onTime?"Noch "+(2-ok3)+" pünktlicher Start bis zum 10-Minuten-Bonus":"Letzte Mission war knapp – mit einem pünktlichen Start holst du dir den Bonus zurück";}}
  let routine=0;const last3=r.slice(-3);const med=id=>{const v=last3.map(h=>h.steps&&h.steps[id]&&h.steps[id].dur).filter(Boolean);return v.length?median(v):DEF_DUR[id];};
- TASKS.forEach(id=>{if(id!=="check")routine+=med(id);});routine+=Math.max((+s.finalMin||10)*60,med("check"));
+ TASKS.forEach(id=>{routine+=med(id);});
  const pill=60,buf=(+s.buffer||0)*60;const lt=leaveTs(base);
  const once=s.wakeOnce&&s.wakeOnce.date===dayKey(base)&&Date.now()<lt?s.wakeOnce.time:null;
  if(s.wakeMode==="fix"||once){const[h,m]=(once||s.wakeFix).split(":").map(Number);const d=new Date(lt);d.setHours(h,m,0,0);const wake=d.getTime();
