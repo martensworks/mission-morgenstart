@@ -87,7 +87,11 @@ h3{font-size:1.05rem}
 @keyframes pulse{50%{opacity:.45}}
 .mc{font-family:var(--f-mono);font-size:.86rem;color:var(--cyan);background:#62e3ff12;border-left:3px solid var(--cyan);padding:10px 12px;border-radius:0 10px 10px 0}
 .ringwrap{position:relative;width:min(72vw,280px);aspect-ratio:1;max-width:100%;margin:6px auto}
-.ringwrap svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ringwrap svg{width:100%;height:100%;overflow:visible}
+#ghostmk{transition:opacity .3s}
+#ghostmk.passed #gbody{fill:var(--orange)}
+#ghostmk.passed{animation:pulse 1s infinite}
+#gzone{transition:stroke .3s}
 .ringwrap .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
 .ringwrap .t{font-family:var(--f-mono);font-size:3.2rem;font-weight:700;line-height:1}
 .ghostline{display:flex;justify-content:space-between;font-size:.9rem}
@@ -110,7 +114,7 @@ td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabula
 .reward{display:flex;gap:12px;align-items:center;justify-content:space-between}
 .reward .cost{font-family:var(--f-mono);font-weight:700;color:var(--gold)}
 label.f{display:flex;flex-direction:column;gap:6px;font-size:.88rem;color:var(--muted)}
-input,select,textarea{font:inherit;color:var(--text);background:var(--space);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:46px;width:100%}
+input,select,textarea{font:inherit;font-size:16px;color:var(--text);background:var(--space);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:46px;width:100%}
 textarea{min-height:90px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .grid2>*{min-width:0}
@@ -629,7 +633,12 @@ function vMission(){const r=S.run;if(!r)return vHome();const steps=stepsDef();co
  <div class="mc">${esc(st.mc)}</div>
  <div class="row between"><span class="muted">Start um <b class="mono">${esc(S.settings.leave)}</b></span><span class="mono" id="tl"></span></div>
  ${body}`;}
-function ring(){const C=2*Math.PI*54;return`<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="#1c2550" stroke-width="10"/><circle id="arc" cx="60" cy="60" r="54" fill="none" stroke="#62e3ff" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"/><circle id="garc" cx="60" cy="60" r="54" fill="none" stroke="#ffd166" stroke-width="3" stroke-dasharray="2 ${C}" stroke-dashoffset="0" opacity="0"/></svg>`;}
+function ring(){const C=2*Math.PI*54;return`<svg viewBox="0 0 120 120" aria-hidden="true"><g transform="rotate(-90 60 60)">
+ <circle cx="60" cy="60" r="54" fill="none" stroke="#1c2550" stroke-width="10"/>
+ <circle id="gzone" cx="60" cy="60" r="54" fill="none" stroke="#ffd166" stroke-opacity=".35" stroke-width="10" stroke-dasharray="0 ${C}"/>
+ <circle id="arc" cx="60" cy="60" r="54" fill="none" stroke="#62e3ff" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></g>
+ <g id="ghostmk" opacity="0"><line id="gtick" stroke="#ffd166" stroke-width="2.5" stroke-linecap="round"/>
+  <g id="gicon"><path id="gbody" d="M-7 7V-1a7 7 0 0 1 14 0V7l-2.33-2.2L2.33 7 0 4.8-2.33 7-4.67 4.8z" fill="#eef1ff"/><circle cx="-2.4" cy="-1" r="1.3" fill="#0a0f24"/><circle cx="2.4" cy="-1" r="1.3" fill="#0a0f24"/></g></g></svg>`;}
 
 function update(){const now=Date.now();
  if(view==="home"){const lt=leaveTs();let target=lt,sub="";if(now>lt){target=lt+864e5;}
@@ -651,7 +660,13 @@ function update(){const now=Date.now();
   if(r.m2lk&&!lk){r.m2lk=false;render();SFX.coin();radio("Mission Control: Jetzt ist Zeit für "+S.settings.med2+"!");return;}}
  const el=(now-r.stepStart)/1000;const tm=$("#tm");if(tm)tm.textContent=fmt(el);
  const g=ghostFor(st.id);const ref=g||DEF_DUR[st.id];const arc=$("#arc");
- if(arc){const frac=Math.min(1,el/(ref*1.0));arc.style.strokeDashoffset=C*(1-frac);arc.setAttribute("stroke",el>ref?"#ff8a3d":"#62e3ff");}
+ // Ring-Skala: Geist-Zeit liegt bei 80 % des Kreises, so sieht man das Näherkommen
+ const GPOS=.8,scale=g?g/GPOS:ref;
+ if(arc){const frac=Math.min(1,el/scale);arc.style.strokeDashoffset=C*(1-frac);arc.setAttribute("stroke",el>ref?"#ff8a3d":"#62e3ff");}
+ const mk=$("#ghostmk");if(mk&&g){mk.setAttribute("opacity","1");const a=(GPOS*360-90)*Math.PI/180,cx=60,cy=60;
+  const t=$("#gtick");t.setAttribute("x1",cx+47*Math.cos(a));t.setAttribute("y1",cy+47*Math.sin(a));t.setAttribute("x2",cx+61*Math.cos(a));t.setAttribute("y2",cy+61*Math.sin(a));
+  $("#gicon").setAttribute("transform","translate("+(cx+72*Math.cos(a)).toFixed(1)+" "+(cy+72*Math.sin(a)).toFixed(1)+")");
+  mk.classList.toggle("passed",el>g);const z=$("#gzone");if(z){z.setAttribute("stroke-dasharray",(C*GPOS)+" "+C);z.setAttribute("stroke",el>g?"#ff8a3d":"#ffd166");}}
  const sub=$("#sub");if(sub&&g){sub.innerHTML=el<=g?`<span style="color:var(--good)">${fmt(g-el)} Vorsprung</span>`:`<span style="color:var(--warn)">Geist ist ${fmt(el-g)} vorne</span>`;}
  if(g&&el>g&&!r.ghostPassed){r.ghostPassed=true;SFX.soft();}
  // Houston-Nachfrage bei deutlicher Überziehung
