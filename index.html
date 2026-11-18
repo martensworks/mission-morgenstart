@@ -138,6 +138,9 @@ textarea{min-height:90px}
  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
  background:radial-gradient(circle at 50% 45%,var(--wc2) 0%,transparent 62%),#0a0f24;--wc:var(--gold);--wc2:#ffd16666}
 #win.ghost{--wc:var(--cyan);--wc2:#62e3ff55}
+#win.rank{--wc:var(--gold);--wc2:#b388ff66}
+#win .insignia{animation:slam .7s .2s cubic-bezier(.2,1.6,.4,1) both;filter:drop-shadow(0 0 24px #ffd166aa)}
+#win .rankname{color:#fff;text-shadow:0 0 18px #b388ff;font-family:var(--f-display);font-size:clamp(1.9rem,9vw,2.8rem);font-weight:700;animation:pop2 .5s .6s both}
 #win .rays{position:absolute;left:50%;top:45%;width:240vmax;height:240vmax;margin:-120vmax 0 0 -120vmax;background:repeating-conic-gradient(from 0deg,var(--wc2) 0 8deg,transparent 8deg 18deg);opacity:.5;animation:spin 9s linear infinite}
 #win>*:not(.rays){position:relative}
 #win .kicker{font-family:var(--f-mono);letter-spacing:.2em;text-transform:uppercase;color:var(--text);font-size:.85rem;animation:pop2 .4s .1s both}
@@ -322,7 +325,7 @@ function applyRun(r){const prev=S.run;S.run=r;try{localStorage.setItem(LS,JSON.s
  if(r&&!prev&&isMission()){keepAwake();radio("Mission Control an "+KID()+". Guten Morgen! Zündsequenz bereit.");}
  if(r&&prev&&r.idx>prev.idx&&isMission()){const st=stepsDef()[r.idx];SFX.done();if(st)radio(st.mc.replace("Mission Control an "+KID()+": ",""));}
  if(r&&prev&&r.med2&&!prev.med2){SFX.coin();setTimeout(()=>celebrate(),100);}
- if(!r&&prev){alarmStop();releaseAwake();const last=S.history[S.history.length-1];if(last&&Date.now()-(last.done||0)<10*60000&&$("#launch").hidden){view="report";viewArg=S.history.length-1;render();SFX.fanfare();setTimeout(()=>celebrate(document.querySelector(".hero-done")),200);return;}}
+ if(!r&&prev){alarmStop();releaseAwake();const last=S.history[S.history.length-1];if(last&&Date.now()-(last.done||0)<10*60000&&$("#launch").hidden){view="report";viewArg=S.history.length-1;render();SFX.fanfare();setTimeout(()=>celebrate(document.querySelector(".hero-done")),200);if(last.rankUp)setTimeout(()=>rankWin(RANKS[last.rankUp][1],last.rankUp),1800);return;}}
  if(view!=="parent"&&view!=="devices")render();}
 function leaveLocal(msg){unsubs.forEach(u=>u());unsubs=[];famRef=null;FAM=null;DEV.famId=null;saveDev();lastMain=lastRun=null;toast(msg);go("setup");}
 const CODE_ABC="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -485,6 +488,18 @@ function toast(msg){const t=document.createElement("div");t.className="toast";t.
 function fireworks(ms){const end=Date.now()+ms;const cols=["#62e3ff","#ffd166","#ff8a3d","#5ff2a0","#ffffff","#ff5d6c"];
  const f=()=>{burst(innerWidth*(.15+Math.random()*.7),innerHeight*(.15+Math.random()*.5),45,cols);if(Date.now()<end)setTimeout(f,220+Math.random()*180);};f();
  burst(20,innerHeight-20,60,cols);burst(innerWidth-20,innerHeight-20,60,cols);}
+function insignia(level){const n=level+1;let ch="";for(let i=0;i<Math.min(n,6);i++){const y=88-i*13;ch+=`<path d="M22 ${y} L60 ${y-16} L98 ${y}" fill="none" stroke="#ffd166" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>`;}
+ return`<svg class="insignia" viewBox="0 0 120 120" width="150" height="150"><circle cx="60" cy="60" r="56" fill="#1c2550" stroke="#ffd166" stroke-width="3"/><path d="M60 14l4 9 10 1-7.5 6.5 2.3 9.8L60 35l-8.8 5.3 2.3-9.8L46 24l10-1z" fill="#ffd166"/>${ch}</svg>`;}
+function rankWin(name,level){return new Promise(res=>{const w=$("#win");w.className="rank";
+ const nx=RANKS[level+1];
+ w.innerHTML=`<div class="rays"></div><div class="kicker">Beförderung</div>${insignia(level)}<h1>NEUER RANG!</h1><div class="rankname">${esc(name)}</div>
+  <div class="delta" style="color:var(--text)">${nx?"Nächstes Ziel: "+esc(nx[1])+" bei "+nx[0]+" XP":"Höchster Rang erreicht!"}</div><div class="tap">Tippen zum Weiterfliegen</div>`;
+ w.hidden=false;const fl=document.createElement("div");fl.className="flash";document.body.appendChild(fl);setTimeout(()=>fl.remove(),700);
+ const app=$("#app");app.classList.remove("quake");void app.offsetWidth;app.classList.add("quake");
+ SFX.pb();fireworks(3500);setTimeout(()=>{SFX.fanfare();},1400);setTimeout(()=>radio("Mission Control an alle Stationen: "+KID()+" wurde befördert. Herzlichen Glückwunsch, "+name+"!"),3200);
+ let done=false;const close=()=>{if(done)return;done=true;w.hidden=true;w.innerHTML="";res();};
+ setTimeout(()=>w.addEventListener("click",close,{once:true}),800);setTimeout(close,9000);});}
+function rankLevel(xp){let l=0;RANKS.forEach((r,i)=>{if(xp>=r[0])l=i;});return l;}
 function bigWin(kind,dur,delta,stepTitle){return new Promise(res=>{const w=$("#win");const pb=kind==="pb";
  w.className=pb?"":"ghost";
  w.innerHTML=`<div class="rays"></div><div class="kicker">${esc(stepTitle)}</div><h1>${pb?"NEUE BESTZEIT!":"GEIST GESCHLAGEN!"}</h1><div class="big">${fmt(dur)}</div>
@@ -732,14 +747,15 @@ function finish(){const r=S.run,now=Date.now();r.done=now;
  if(onTime&&st>=2)add(Math.min(25,5*(st-1)),"Serie: "+st+" Tage in Folge");if(milestone)add(milestone>=10?50:25,"Meilenstein: "+milestone+"-Tage-Serie!");
  day.xp=items.reduce((a,b)=>a+b[0],0);day.items=items;day.streak=st;day.focus=focusAll;day.freezeUsed=freezeUsed;day.milestone=milestone;day.lost=lost;
  day.insights=insights(day);const j=pick(JOKES);day.joke=j;
- if(!r.practice){S.xp+=day.xp;S.xpTotal+=day.xp;S.stats.pbs+=pbs;S.stats.honest+=honest;}
+ if(!r.practice){const before=rankLevel(S.xpTotal);S.xp+=day.xp;S.xpTotal+=day.xp;S.stats.pbs+=pbs;S.stats.honest+=honest;const after=rankLevel(S.xpTotal);if(after>before)day.rankUp=after;}
  S.history.push(day);
  // Abzeichen
  day.newBadges=[];if(!r.practice){const nb=id=>{if(!S.badges[id]){S.badges[id]=day.date;day.newBadges.push(id);}};
   nb("first");if(st>=3)nb("streak3");if(st>=5)nb("streak5");if(st>=10)nb("streak10");if(S.stats.pbs>=5)nb("pb5");if(focusAll)nb("focus");if(early>=10)nb("early10");if(S.stats.honest>=3)nb("honest3");}
  const p=plan();day.next={lie:p.lie,why:p.why,wake:p.wake,keep:p.keep||0};
  S.run=null;save();releaseAwake();
- launchAnim(()=>{go("report",S.history.length-1);SFX.fanfare();setTimeout(()=>playClip("smallstep"),2600);setTimeout(()=>celebrate(document.querySelector(".hero-done")),200);});}
+ launchAnim(()=>{go("report",S.history.length-1);SFX.fanfare();setTimeout(()=>celebrate(document.querySelector(".hero-done")),200);
+  if(day.rankUp)setTimeout(()=>rankWin(RANKS[day.rankUp][1],day.rankUp),1800);else setTimeout(()=>playClip("smallstep"),2600);});}
 function stepName(id){const s=stepsDef().find(x=>x.id===id);return s?s.short:id;}
 function insights(day){const out=[];if((day.free||0)>=180)out.push(["good","Du hattest dir "+Math.round(day.free/60)+" Minuten Freizeit erarbeitet!"]);const t=TASKS.map(id=>({id,s:day.steps[id]})).filter(x=>x.s);
  const withG=t.filter(x=>x.s.ghost);
@@ -769,6 +785,7 @@ function vReport(){const day=S.history[viewArg];if(!day)return vHome();
   <div class="row" style="justify-content:center"><span class="chip ${day.onTime?"good":"warn"}">Fertig um ${clock(day.done)}</span><span class="chip">Routine ${fmt(day.total)}</span>${day.free>=60?`<span class="chip good">Freizeit ${Math.round(day.free/60)} Min</span>`:""}${day.streak>=2?`<span class="chip gold">Serie ${day.streak}</span>`:""}</div>
  </section>
  ${!day.practice?`<section class="panel streak-hero pop">${flame(48,day.streak>0)}<div><div class="mono" style="font-size:2.2rem;font-weight:700;line-height:1;color:${day.streak?"var(--orange)":"var(--muted)"}">${day.streak}</div><div class="eyebrow">${day.milestone?"Meilenstein erreicht!":day.freezeUsed?"Serie gerettet":"Tage-Serie"}</div></div></section>`:""}
+ ${day.rankUp?`<div class="badge pop" style="border-color:var(--gold)"><div style="flex:none;width:56px">${insignia(day.rankUp).replace('width="150" height="150"','width="56" height="56"')}</div><div><div class="eyebrow">Beförderung</div><b style="font-size:1.15rem">${esc(RANKS[day.rankUp][1])}</b><div class="muted" style="font-size:.85rem">Neuer Rang erreicht!</div></div></div>`:""}
  ${(day.newBadges||[]).map(id=>{const b=BADGES.find(x=>x.id===id);return b?`<div class="badge pop"><div class="medal">${esc(b.m)}</div><div><div class="eyebrow">Neues Abzeichen</div><b>${esc(b.n)}</b><div class="muted" style="font-size:.85rem">${esc(b.d)}</div></div></div>`:"";}).join("")}
  <section class="panel stack"><h3>So lief's</h3>${day.insights.map(([k,t])=>`<div class="row" style="align-items:flex-start;flex-wrap:nowrap"><span class="chip ${k}" style="flex:none">${k==="good"?"Top":"Hinweis"}</span><span style="min-width:0">${esc(t)}</span></div>`).join("")}</section>
  <section class="panel"><h3 style="margin-bottom:6px">Du gegen gestern</h3><div style="overflow-x:auto"><table><thead><tr><th>Phase</th><th class="n">Heute</th><th class="n">Gestern</th><th class="n">Diff</th></tr></thead><tbody>${rows}</tbody></table></div></section>
@@ -852,7 +869,7 @@ function vParent(){const s=S.settings;
  <section class="panel stack"><h3>Effekte testen</h3><div class="grid2">
   <button class="btn btn-sm" data-act="pv" data-k="ghost">Geist geschlagen</button><button class="btn btn-sm" data-act="pv" data-k="pb">Neue Bestzeit</button>
   <button class="btn btn-sm" data-act="pv" data-k="launch">Raketenstart</button><button class="btn btn-sm" data-act="pv" data-k="alarm">Weck-Alarm</button>
-  <button class="btn btn-sm" data-act="pv" data-k="radio">Funkspruch</button><button class="btn btn-sm" data-act="pv" data-k="step">Small Step</button></div>
+  <button class="btn btn-sm" data-act="pv" data-k="radio">Funkspruch</button><button class="btn btn-sm" data-act="pv" data-k="step">Small Step</button><button class="btn btn-sm" data-act="pv" data-k="rank">Beförderung</button></div>
   <button class="btn" data-act="pin">Eltern-PIN ändern</button>
   <button class="btn" data-act="wipe" style="color:var(--bad)">Fortschritt zurücksetzen</button></section>
  <p class="muted" style="font-size:.8rem;margin:0">Funksprüche: NASA-Originalaufnahmen via Wikimedia Commons – Apollo 8 Liftoff (1968), Apollo 11 „The Eagle has landed“ und „One small step“ (1969), Apollo 13 „Houston, we've had a problem“ (1970).</p>
@@ -895,13 +912,14 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-act]
    else if(k==="pb")bigWin("pb",184,41,"Vorschau · Anziehen");
    else if(k==="launch")launchAnim(()=>{SFX.fanfare();setTimeout(()=>celebrate(),200);});
    else if(k==="alarm"){const d=playClip("problem");setTimeout(()=>{alarmStart();setTimeout(alarmStop,3500);},d?d*1000+600:0);}
+   else if(k==="rank"){const l=Math.max(1,rankLevel(S.xpTotal));rankWin(RANKS[l][1],l);}
    else if(k==="radio")radio("Houston an "+KID()+": Funkcheck. Hörst du mich? Over.");
    else if(k==="step"){if(!playClip("smallstep"))toast("Clip noch nicht geladen – gleich nochmal tippen");}
    break;}
   case"psave":saveParent();break;
   case"rwadd":{const rw={id:"r"+Date.now(),name:"Neue Belohnung",per:"tag",streak:1,cost:0};$("#p-rw").insertAdjacentHTML("beforeend",rwRow(rw));break;}
   case"rwdel":t.closest(".rw").remove();break;
-  case"pxp":{const n=parseInt($("#p-xp").value);if(!n)break;S.xp=Math.max(0,S.xp+n);if(n>0)S.xpTotal+=n;save();render();toast((n>0?"+":"")+n+" XP gebucht");break;}
+  case"pxp":{const n=parseInt($("#p-xp").value);if(!n)break;const before=rankLevel(S.xpTotal);S.xp=Math.max(0,S.xp+n);if(n>0)S.xpTotal+=n;save();render();toast((n>0?"+":"")+n+" XP gebucht");const after=rankLevel(S.xpTotal);if(after>before)rankWin(RANKS[after][1],after);break;}
   case"practice":{saveParent();const p=plan();S.run={v:2,date:dayKey(),practice:true,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};save();keepAwake();go("mission");radio("Probelauf. Mission Control ist bereit.");break;}
   case"pin":if(await setupPin())render();break;
   case"wipe":{const ok=await modal(`<h2>Fortschritt zurücksetzen?</h2><p class="muted" style="margin:0">Logbuch, Punkte, Serie, Abzeichen und eingelöste Belohnungen werden auf allen Geräten gelöscht. Einstellungen und PIN bleiben.</p><button class="btn" data-v="0">Abbrechen</button><button class="btn" data-v="1" style="color:var(--bad)">Ja, alles löschen</button>`,(b,close)=>b.addEventListener("click",ev=>{const k=ev.target.closest("[data-v]");if(k)close(k.dataset.v==="1");}));
