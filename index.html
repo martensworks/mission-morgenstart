@@ -168,7 +168,7 @@ textarea{min-height:90px}
 .week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .wd{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:10px;font-size:.72rem;color:var(--muted)}
 .wd.today{background:var(--panel2);color:var(--text)}
-.wd .ice{color:var(--cyan);font-size:1.2rem;line-height:26px}.wd .miss{color:var(--muted);font-size:1.4rem;line-height:26px}
+.wd .ice{color:var(--cyan);font-size:1.2rem;line-height:26px}.wd .sick{color:var(--good);font-size:1.1rem;line-height:26px}.wd .miss{color:var(--muted);font-size:1.4rem;line-height:26px}
 .streak-hero{display:flex;align-items:center;justify-content:center;gap:10px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -271,7 +271,7 @@ function finalTs(r){return leaveTs((r&&r.start)||Date.now())-(+S.settings.finalM
 const LS="bosse-mission-v1";
 function fresh(){return{v:1,updated:0,settings:{leave:"07:20",buffer:3,lieMode:"auto",finalMin:10,pin:null,sound:true,voice:true,med1:"Tablette 1",med2:"Tablette 2",kid:"Kommandant",checks:["Brille auf","Apple Watch dran"],
  wakeMode:"auto",wakeFix:"06:15",med2Gap:20,rewards:defRewards()},
- xp:0,xpTotal:0,badges:{},stats:{pbs:0,honest:0},history:[],redemptions:[],run:null,streak:{count:0,best:0,freezes:0,start:null},marks:{}};}
+ xp:0,xpTotal:0,badges:{},stats:{pbs:0,honest:0},history:[],redemptions:[],run:null,streak:{count:0,best:0,freezes:0,start:null},marks:{},excused:{},gapDone:null};}
 function defRewards(){return[
  {id:"r1",name:"Abendfolge mit deinem Bruder",streak:1,per:"tag",cost:0},
  {id:"r2",name:"15 Minuten Daddeln",streak:2,per:"tag",cost:0},
@@ -281,6 +281,7 @@ function migrate(){if(!S.streak){let c=0,b=0,start=null;S.history.filter(h=>!h.p
  if(S.settings.rewards.some(r=>!r.per))S.settings.rewards=defRewards();
  if(S.settings.med2Gap===undefined)S.settings.med2Gap=20;
  if(S.settings.finalMin===undefined)S.settings.finalMin=10;
+ if(!S.settings.schoolDays)S.settings.schoolDays=[1,2,3,4,5];if(!S.excused)S.excused={};if(S.gapDone===undefined)S.gapDone=null;
  if(!S.settings.wakeOnceInit){S.settings.wakeOnceInit=true;S.settings.wakeOnce={date:"2026-11-17",time:"06:15"};}}
 let S=fresh();
 try{const raw=localStorage.getItem(LS);if(raw)S=Object.assign(fresh(),JSON.parse(raw));}catch(e){}
@@ -386,8 +387,26 @@ function med2Tile(r){const lk=med2Locked(r);return`<button class="tile ${r.med2?
 function flame(size,lit){return`<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3-1-3 0-6 1-9.5z" fill="${lit?"#ff8a3d":"#2c3770"}"/><path d="M12 12c.6 1.8 2.5 2.6 2.5 4.6a2.5 2.5 0 0 1-5 0c0-1.2.8-2 1.5-2.6 0 .8.4 1.3 1 1.4-.3-1.2-.4-2.2 0-3.4z" fill="${lit?"#ffd166":"#1c2550"}"/></svg>`;}
 function weekStrip(){const now=new Date();const dow=(now.getDay()+6)%7;const mon=new Date(now);mon.setDate(now.getDate()-dow);
  return["Mo","Di","Mi","Do","Fr","Sa","So"].map((n,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);const k=dayKey(d.getTime());const h=real().filter(x=>x.date===k).pop();
-  const state=h?(h.onTime?"on":(h.freezeUsed?"ice":"miss")):"";
-  return`<div class="wd ${k===dayKey()?"today":""}"><span>${n}</span>${state==="on"?flame(26,true):state==="ice"?'<b class="ice">❄</b>':state==="miss"?'<b class="miss">·</b>':flame(26,false)}</div>`;}).join("");}
+  const state=h?(h.onTime?"on":(h.freezeUsed||h.rescued?"ice":"miss")):(S.excused&&S.excused[k]?"sick":"");
+  return`<div class="wd ${k===dayKey()?"today":""}"><span>${n}</span>${state==="on"?flame(26,true):state==="ice"?'<b class="ice">❄</b>':state==="miss"?'<b class="miss">·</b>':state==="sick"?`<b class="sick" title="${S.excused[k]==="krank"?"krank":"schulfrei"}">${S.excused[k]==="krank"?"✚":"–"}</b>`:flame(26,false)}</div>`;}).join("");}
+
+/* Unterbrechungen (krank, schulfrei): Serie bleibt, wenn Eltern es bestätigen */
+function addDays(k,n){const[y,m,d]=k.split("-").map(Number);const dt=new Date(y,m-1,d);dt.setDate(dt.getDate()+n);return dayKey(dt.getTime());}
+function pendingGap(){const r=real();if(!r.length||!S.streak||S.streak.count<1)return[];const last=r[r.length-1].date;const today=dayKey();const yest=addDays(today,-1);
+ let from=addDays(last,1);if(S.gapDone&&S.gapDone>=from)from=addDays(S.gapDone,1);const out=[];
+ for(let k=from;k<=yest;k=addDays(k,1)){const[y,m,d]=k.split("-").map(Number);const dow=new Date(y,m-1,d).getDay();if((S.settings.schoolDays||[1,2,3,4,5]).includes(dow)&&!S.excused[k]&&!r.some(h=>h.date===k))out.push(k);if(out.length>60)break;}
+ return out;}
+let gapAsking=false,gapAskedFor=null;
+async function askGap(){const days=pendingGap();if(!days.length||gapAsking)return true;gapAsking=true;
+ try{const lbl=days.length===1?dayLabel(days[0]):dayLabel(days[0])+" – "+dayLabel(days[days.length-1])+" ("+days.length+" Schultage)";
+  const v=await modal(`<div class="eyebrow">Unterbrechung</div><h2>An ${esc(lbl)} gab es keine Mission.</h2><p class="muted" style="margin:0">Warst du krank oder war schulfrei? Dann bleibt deine Serie von <b style="color:var(--orange)">${S.streak.count} Tagen</b> bestehen. Ein Elternteil bestätigt das mit der PIN.</p>
+   <button class="btn btn-cyan" data-v="krank">Ich war krank</button><button class="btn" data-v="frei">Es war schulfrei (Ferien, Feiertag)</button><button class="btn btn-ghost" data-v="nein">Nichts davon</button>`,(b,close)=>b.addEventListener("click",e=>{const k=e.target.closest("[data-v]");if(k)close(k.dataset.v);}));
+  if(v==="krank"||v==="frei"){gapAsking=false;const ok=await parentOk(v==="krank"?"Krankheit bestätigen":"Schulfrei bestätigen",lbl);if(!ok)return false;
+   days.forEach(k=>S.excused[k]=v);S.gapDone=days[days.length-1];save();SFX.coin();toast("Serie bleibt bestehen: "+S.streak.count+" Tage");render();}
+  else if(v==="nein"){if(S.streak.freezes>0){S.streak.freezes--;toast("Dein Streak-Schutz hat die Serie gerettet!");}else{toast("Die Serie von "+S.streak.count+" Tagen ist vorbei. Heute startet eine neue!");S.streak.count=0;S.streak.start=null;}
+   S.gapDone=days[days.length-1];save();render();}
+  else return false;
+ }finally{gapAsking=false;}return true;}
 
 /* Plan: Liegezeit + Weckzeit (berechnet aus den letzten 3 echten Missionen) */
 function planBase(){const now=Date.now();return(now>leaveTs(now)||real().some(h=>h.date===dayKey(now)))?now+864e5:now;}
@@ -412,12 +431,20 @@ function plan(){const r=real();const s=S.settings;let lie,why;const base=planBas
 
 /* ============ Sound ============ */
 const A={ctx:null,master:null,nb:null};
-function audioInit(){
- try{if(navigator.audioSession)navigator.audioSession.type="playback";}catch(e){}
- if(!A.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;A.ctx=new C();A.master=A.ctx.createGain();A.master.gain.value=.7;A.master.connect(A.ctx.destination);
-  const b=A.ctx.createBuffer(1,1,22050),s=A.ctx.createBufferSource();s.buffer=b;s.connect(A.master);s.start(0);
-  try{if("speechSynthesis"in window){const u=new SpeechSynthesisUtterance(" ");u.volume=0;speechSynthesis.speak(u);}}catch(e){}loadClips();}
- else if(A.ctx.state!=="running")A.ctx.resume();}
+const SILENT_WAV="data:audio/wav;base64,UklGRvQHAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YdAHAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==";
+let silentEl=null,voiceUnlocked=false;
+function silentUnlock(){/* iOS: ein kurzes stummes <audio> schaltet die Audio-Sitzung auf Wiedergabe, damit Web Audio zuverlässig klingt */
+ try{if(!silentEl){silentEl=document.createElement("audio");silentEl.setAttribute("playsinline","");silentEl.preload="auto";silentEl.src=SILENT_WAV;}silentEl.currentTime=0;const p=silentEl.play();if(p&&p.catch)p.catch(()=>{});}catch(e){}}
+function newCtx(){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;try{if(A.ctx&&A.ctx.state!=="closed")A.ctx.close();}catch(e){}
+ A.ctx=new C();A.master=A.ctx.createGain();A.master.gain.value=.7;A.master.connect(A.ctx.destination);
+ const b=A.ctx.createBuffer(1,1,22050),s=A.ctx.createBufferSource();s.buffer=b;s.connect(A.master);s.start(0);try{A.ctx.resume();}catch(e){}}
+function audioInit(){/* wird bei jedem Tippen aufgerufen */
+ try{if(navigator.audioSession&&navigator.audioSession.type!=="playback")navigator.audioSession.type="playback";}catch(e){}
+ silentUnlock();
+ if(!A.ctx||A.ctx.state!=="running")newCtx();
+ if(!voiceUnlocked){voiceUnlocked=true;try{if("speechSynthesis"in window){const u=new SpeechSynthesisUtterance(" ");u.volume=0;speechSynthesis.speak(u);}}catch(e){}}
+ loadClips();}
+addEventListener("pageshow",()=>{if(A.ctx&&A.ctx.state!=="running"){try{A.ctx.resume();}catch(e){}}});
 const on=()=>A.ctx&&DEV.sound;
 function tone(f,t0,dur,type,vol,f2){const c=A.ctx,o=c.createOscillator(),g=c.createGain();o.type=type||"sine";o.frequency.setValueAtTime(f,t0);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t0+dur);
  g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(vol||.2,t0+.012);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);o.connect(g);g.connect(A.master);o.start(t0);o.stop(t0+dur+.05);}
@@ -583,7 +610,8 @@ function render(){clearInterval(tick);tick=null;const app=$("#app");
  if(!DEV.famId)view="setup";
  else if(S.run&&view!=="mission"&&view!=="parent"&&view!=="devices")view="mission";
  const v={setup:vSetup,devices:vDevices,home:vHome,mission:vMission,report:vReport,shop:vShop,log:vLog,badges:vBadges,parent:vParent}[view]||vHome;app.innerHTML=v();
- if(view==="home"||view==="mission"){tick=setInterval(()=>update(),250);update();}}
+ if(view==="home"||view==="mission"){tick=setInterval(()=>update(),250);update();}
+ if(view==="home"&&!S.run){const g=pendingGap();const key=dayKey()+":"+g.join(",");if(g.length&&gapAskedFor!==key&&$("#modal").hidden){gapAskedFor=key;setTimeout(()=>{if(view==="home"&&$("#modal").hidden)askGap();},500);}}}
 
 function vHome(){const p=plan();const rk=rankOf(S.xpTotal);const st=S.streak.count;
  const prog=rk.next?Math.round((S.xpTotal-rk.min)/(rk.next[0]-rk.min)*100):100;
@@ -689,7 +717,7 @@ function update(){const now=Date.now();
  if(isMission()&&el>lim&&$("#modal").hidden&&(!r.lastAlert||now-r.lastAlert>120000)){r.lastAlert=now;r.alerts=(r.alerts||0)+1;save();houston();}}
 
 /* ============ Missionslogik ============ */
-async function startMission(){audioInit();const doneToday=real().some(h=>h.date===dayKey());
+async function startMission(){audioInit();if(pendingGap().length){const ok=await askGap();if(!ok)return;}const doneToday=real().some(h=>h.date===dayKey());
  if(!S.settings.pin&&isMission()){const ok=await setupPin();if(!ok)return;}
  const p=plan();
  S.run={v:2,date:dayKey(),practice:doneToday,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};
@@ -784,6 +812,7 @@ function vReport(){const day=S.history[viewArg];if(!day)return vHome();
   <div class="bigxp">+${day.practice?0:day.xp} XP</div>
   <div class="row" style="justify-content:center"><span class="chip ${day.onTime?"good":"warn"}">Fertig um ${clock(day.done)}</span><span class="chip">Routine ${fmt(day.total)}</span>${day.free>=60?`<span class="chip good">Freizeit ${Math.round(day.free/60)} Min</span>`:""}${day.streak>=2?`<span class="chip gold">Serie ${day.streak}</span>`:""}</div>
  </section>
+ ${!day.practice&&(day.lost>0||day.freezeUsed)&&!day.rescued&&viewArg===S.history.length-1?`<section class="panel stack" style="border-color:var(--warn)"><h3>${day.lost>0?"Serie von "+day.lost+" Tagen verloren":"Streak-Schutz verbraucht"}</h3><div class="muted" style="font-size:.9rem">War ${esc(KID())} krank oder gab es einen anderen guten Grund? Dann können Eltern die Serie retten.</div><button class="btn btn-cyan" data-act="rescue">Serie retten (Eltern)</button></section>`:""}
  ${!day.practice?`<section class="panel streak-hero pop">${flame(48,day.streak>0)}<div><div class="mono" style="font-size:2.2rem;font-weight:700;line-height:1;color:${day.streak?"var(--orange)":"var(--muted)"}">${day.streak}</div><div class="eyebrow">${day.milestone?"Meilenstein erreicht!":day.freezeUsed?"Serie gerettet":"Tage-Serie"}</div></div></section>`:""}
  ${day.rankUp?`<div class="badge pop" style="border-color:var(--gold)"><div style="flex:none;width:56px">${insignia(day.rankUp).replace('width="150" height="150"','width="56" height="56"')}</div><div><div class="eyebrow">Beförderung</div><b style="font-size:1.15rem">${esc(RANKS[day.rankUp][1])}</b><div class="muted" style="font-size:.85rem">Neuer Rang erreicht!</div></div></div>`:""}
  ${(day.newBadges||[]).map(id=>{const b=BADGES.find(x=>x.id===id);return b?`<div class="badge pop"><div class="medal">${esc(b.m)}</div><div><div class="eyebrow">Neues Abzeichen</div><b>${esc(b.n)}</b><div class="muted" style="font-size:.85rem">${esc(b.d)}</div></div></div>`:"";}).join("")}
@@ -862,6 +891,9 @@ function vParent(){const s=S.settings;
  <section class="panel stack"><h3>Belohnungen</h3><p class="muted" style="margin:0;font-size:.88rem"><b>Täglich:</b> einlösbar am Abend eines pünktlichen Tages, wenn die Serie mindestens so lang ist. <b>Meilenstein:</b> einmal alle N Serien-Tage. XP-Kosten sind optional (0 = keine).</p>
   <div class="list" id="p-rw">${s.rewards.map(rw=>rwRow(rw)).join("")}</div><button class="btn btn-sm" data-act="rwadd">+ Belohnung hinzufügen</button></section>
  <button class="btn btn-cyan" data-act="psave">Einstellungen speichern</button>
+ <section class="panel stack"><h3>Serie</h3><div class="muted" style="font-size:.88rem">Aktuell ${S.streak.count} Tage · Rekord ${S.streak.best} · Streak-Schutz ${S.streak.freezes}/${FREEZE_MAX}</div>
+  <div class="row" style="flex-wrap:nowrap"><input type="number" id="p-streak" min="0" max="999" value="${S.streak.count}" style="flex:1" aria-label="Serie in Tagen"><button class="btn btn-sm" data-act="pstreak">Serie setzen</button></div>
+  <div class="f"><span class="muted" style="font-size:.88rem">Schultage – nur an diesen Tagen fragt die App nach, wenn keine Mission war</span><div class="row" style="gap:8px">${[1,2,3,4,5,6,0].map(d=>`<label class="row" style="gap:4px;font-size:.9rem"><input type="checkbox" class="p-sd" value="${d}" ${S.settings.schoolDays.includes(d)?"checked":""} style="width:20px;min-height:0">${["So","Mo","Di","Mi","Do","Fr","Sa"][d]}</label>`).join("")}</div><div class="muted" style="font-size:.8rem">Wird mit „Einstellungen speichern“ übernommen.</div></div></section>
  <section class="panel stack"><h3>Punkte</h3><div class="row" style="flex-wrap:nowrap"><input type="number" id="p-xp" placeholder="z. B. 20 oder -20" style="flex:1"><button class="btn btn-sm" data-act="pxp">Buchen</button></div><div class="muted" style="font-size:.85rem">Aktuell ${S.xp} XP zum Einlösen, ${S.xpTotal} XP gesamt.</div></section>
  <section class="panel stack"><h3>Werkzeuge</h3>
   <button class="btn" data-act="practice">Probelauf starten (zählt nicht)</button>
@@ -870,13 +902,14 @@ function vParent(){const s=S.settings;
   <button class="btn btn-sm" data-act="pv" data-k="ghost">Geist geschlagen</button><button class="btn btn-sm" data-act="pv" data-k="pb">Neue Bestzeit</button>
   <button class="btn btn-sm" data-act="pv" data-k="launch">Raketenstart</button><button class="btn btn-sm" data-act="pv" data-k="alarm">Weck-Alarm</button>
   <button class="btn btn-sm" data-act="pv" data-k="radio">Funkspruch</button><button class="btn btn-sm" data-act="pv" data-k="step">Small Step</button><button class="btn btn-sm" data-act="pv" data-k="rank">Beförderung</button></div>
+  <button class="btn btn-sm" data-act="pv" data-k="diag">Tontest &amp; Diagnose</button><div id="diag" class="muted" style="font-size:.85rem"></div>
   <button class="btn" data-act="pin">Eltern-PIN ändern</button>
   <button class="btn" data-act="wipe" style="color:var(--bad)">Fortschritt zurücksetzen</button></section>
  <p class="muted" style="font-size:.8rem;margin:0">Funksprüche: NASA-Originalaufnahmen via Wikimedia Commons – Apollo 8 Liftoff (1968), Apollo 11 „The Eagle has landed“ und „One small step“ (1969), Apollo 13 „Houston, we've had a problem“ (1970).</p>
  <p class="muted" style="font-size:.8rem;margin:0">Die App erinnert nur und protokolliert. Medikamente und Zeiten wie ärztlich verordnet.</p>`;}
 function rwRow(rw){return`<div class="stack rw" data-id="${esc(rw.id)}" style="border-top:1px solid var(--line);padding-top:10px"><input class="rw-name" value="${esc(rw.name)}" aria-label="Name der Belohnung"><div class="grid2"><label class="f">Art<select class="rw-per"><option value="tag" ${rw.per==="tag"?"selected":""}>Täglich</option><option value="meilenstein" ${rw.per==="meilenstein"?"selected":""}>Meilenstein</option></select></label><label class="f">Serie (Tage)<input type="number" class="rw-streak" value="${rw.streak}" min="1" max="100"></label></div><label class="f">XP-Kosten<input type="number" class="rw-cost" value="${rw.cost||0}" min="0"></label><button class="btn btn-sm btn-ghost" data-act="rwdel" style="color:var(--bad)">Entfernen</button></div>`;}
 function readRewards(){return[...document.querySelectorAll("#p-rw .rw")].map(el=>({id:el.dataset.id,name:el.querySelector(".rw-name").value.trim()||"Belohnung",per:el.querySelector(".rw-per").value,streak:Math.max(1,parseInt(el.querySelector(".rw-streak").value)||1),cost:Math.max(0,parseInt(el.querySelector(".rw-cost").value)||0)}));}
-function saveParent(){const s=S.settings;s.leave=$("#p-leave").value||s.leave;s.buffer=Math.max(0,Math.min(30,parseInt($("#p-buffer").value)||0));s.lieMode=$("#p-lie").value;s.wakeMode=$("#p-wm").value;s.wakeFix=$("#p-wf").value||s.wakeFix;
+function saveParent(){const s=S.settings;s.leave=$("#p-leave").value||s.leave;s.buffer=Math.max(0,Math.min(30,parseInt($("#p-buffer").value)||0));s.lieMode=$("#p-lie").value;{const sd=[...document.querySelectorAll(".p-sd:checked")].map(x=>+x.value);if(sd.length)s.schoolDays=sd;}s.wakeMode=$("#p-wm").value;s.wakeFix=$("#p-wf").value||s.wakeFix;
  s.med1=$("#p-med1").value.trim()||"Tablette 1";s.med2=$("#p-med2").value.trim()||"Tablette 2";s.med2Gap=Math.max(0,Math.min(120,parseInt($("#p-m2gap").value)||0));s.finalMin=Math.max(3,Math.min(30,parseInt($("#p-final").value)||10));s.checks=$("#p-checks").value.split("\n").map(x=>x.trim()).filter(Boolean);if(!s.checks.length)s.checks=["Brille auf"];
  DEV.sound=$("#p-sound").value==="1";DEV.voice=$("#p-voice").value==="1";saveDev();s.kid=$("#p-kid").value.trim()||s.kid;s.rewards=readRewards();save();SFX.coin();toast("Gespeichert");}
 
@@ -912,6 +945,7 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-act]
    else if(k==="pb")bigWin("pb",184,41,"Vorschau · Anziehen");
    else if(k==="launch")launchAnim(()=>{SFX.fanfare();setTimeout(()=>celebrate(),200);});
    else if(k==="alarm"){const d=playClip("problem");setTimeout(()=>{alarmStart();setTimeout(alarmStop,3500);},d?d*1000+600:0);}
+   else if(k==="diag"){SFX.fanfare();const d=$("#diag");if(d)d.innerHTML=`Ton auf diesem Gerät: <b>${DEV.sound?"an":"AUS"}</b> · Funksprüche: <b>${DEV.voice?"an":"aus"}</b><br>Audio-Status: <b>${A.ctx?A.ctx.state:"nicht gestartet"}</b> · Geräte-Art: <b>${isMission()?"Mission-Gerät":"Eltern-Gerät (keine Alarme/Funksprüche)"}</b><br>Hörst du die Fanfare nicht: Stummschalter am iPhone prüfen und Lautstärke hochdrehen.`;setTimeout(()=>radio("Funkcheck. Hörst du mich?"),1800);}
    else if(k==="rank"){const l=Math.max(1,rankLevel(S.xpTotal));rankWin(RANKS[l][1],l);}
    else if(k==="radio")radio("Houston an "+KID()+": Funkcheck. Hörst du mich? Over.");
    else if(k==="step"){if(!playClip("smallstep"))toast("Clip noch nicht geladen – gleich nochmal tippen");}
@@ -919,6 +953,10 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-act]
   case"psave":saveParent();break;
   case"rwadd":{const rw={id:"r"+Date.now(),name:"Neue Belohnung",per:"tag",streak:1,cost:0};$("#p-rw").insertAdjacentHTML("beforeend",rwRow(rw));break;}
   case"rwdel":t.closest(".rw").remove();break;
+  case"pstreak":{const n=Math.max(0,parseInt($("#p-streak").value)||0);S.streak.count=n;S.streak.best=Math.max(S.streak.best,n);if(n&&!S.streak.start)S.streak.start=dayKey();if(!n)S.streak.start=null;S.gapDone=addDays(dayKey(),-1);save();SFX.coin();toast("Serie auf "+n+" Tage gesetzt");render();break;}
+  case"rescue":{const day=S.history[viewArg];if(!day||day.rescued)break;if(!await parentOk("Serie retten",KID()+" war krank oder hatte einen guten Grund."))break;
+   if(day.lost>0){S.streak.count=day.lost;S.streak.best=Math.max(S.streak.best,day.lost);day.streak=day.lost;day.lost=0;}else if(day.freezeUsed){S.streak.freezes=Math.min(FREEZE_MAX,S.streak.freezes+1);}
+   day.rescued=true;S.excused[day.date]="krank";save();SFX.fanfare();celebrate();toast("Serie gerettet: "+S.streak.count+" Tage");render();break;}
   case"pxp":{const n=parseInt($("#p-xp").value);if(!n)break;const before=rankLevel(S.xpTotal);S.xp=Math.max(0,S.xp+n);if(n>0)S.xpTotal+=n;save();render();toast((n>0?"+":"")+n+" XP gebucht");const after=rankLevel(S.xpTotal);if(after>before)rankWin(RANKS[after][1],after);break;}
   case"practice":{saveParent();const p=plan();S.run={v:2,date:dayKey(),practice:true,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};save();keepAwake();go("mission");radio("Probelauf. Mission Control ist bereit.");break;}
   case"pin":if(await setupPin())render();break;
