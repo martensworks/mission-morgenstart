@@ -285,6 +285,7 @@ function migrate(){if(!S.streak){let c=0,b=0,start=null;S.history.filter(h=>!h.p
  if(S.settings.rewards.some(r=>!r.per))S.settings.rewards=defRewards();
  if(S.settings.med2Gap===undefined)S.settings.med2Gap=20;
  if(S.settings.finalMin===undefined)S.settings.finalMin=10;
+ if(!S.settings.fix1125){S.settings.fix1125=true;(S.history||[]).forEach(h=>{if(h.date==="2026-11-25"&&!h.practice)h.ignoreTimes=true;});}
  if(!S.settings.schoolDays)S.settings.schoolDays=[1,2,3,4,5];if(!S.excused)S.excused={};if(S.gapDone===undefined)S.gapDone=null;
  if(!S.settings.wakeOnceInit){S.settings.wakeOnceInit=true;S.settings.wakeOnce={date:"2026-11-17",time:"06:15"};}}
 let S=fresh();
@@ -366,9 +367,10 @@ const WD=["So","Mo","Di","Mi","Do","Fr","Sa"];
 function dayLabel(k){const[y,m,d]=k.split("-").map(Number);const dt=new Date(y,m-1,d);return WD[dt.getDay()]+" "+d+"."+m+".";}
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const real=()=>S.history.filter(h=>!h.practice);
+const timed=()=>real().filter(h=>!h.ignoreTimes);
 function median(a){const b=[...a].sort((x,y)=>x-y);const n=b.length;return n%2?b[(n-1)/2]:(b[n/2-1]+b[n/2])/2;}
-function ghostFor(id){const r=real();for(let i=r.length-1;i>=0;i--){const s=r[i].steps&&r[i].steps[id];if(s&&s.dur)return s.dur;}return null;}
-function bestFor(id){let b=null;real().forEach(h=>{const s=h.steps&&h.steps[id];if(s&&s.dur&&(b===null||s.dur<b))b=s.dur;});return b;}
+function ghostFor(id){const r=timed();for(let i=r.length-1;i>=0;i--){const s=r[i].steps&&r[i].steps[id];if(s&&s.dur)return s.dur;}return null;}
+function bestFor(id){let b=null;timed().forEach(h=>{const s=h.steps&&h.steps[id];if(s&&s.dur&&(b===null||s.dur<b))b=s.dur;});return b;}
 function streakOf(list){let n=0;for(let i=list.length-1;i>=0;i--){if(list[i].onTime)n++;else break;}return n;}
 function rankOf(xp){let r=RANKS[0],nx=null;for(let i=0;i<RANKS.length;i++){if(xp>=RANKS[i][0]){r=RANKS[i];nx=RANKS[i+1]||null;}}return{name:r[1],min:r[0],next:nx};}
 function onTimeLast5(){return real().slice(-5).filter(h=>h.onTime).length;}
@@ -421,7 +423,7 @@ function plan(){const r=real();const s=S.settings;let lie,why;const base=planBas
   if(!last){lie=10;why="Startbonus für die erste Mission";}
   else if(last.onTime&&ok3>=Math.min(2,r.length)){lie=10;why="Bonus: Letzte Mission pünktlich und "+ok3+" von "+Math.min(3,r.length)+" der letzten Starts pünktlich";}
   else{lie=5;why=last.onTime?"Noch "+(2-ok3)+" pünktlicher Start bis zum 10-Minuten-Bonus":"Letzte Mission war knapp – mit einem pünktlichen Start holst du dir den Bonus zurück";}}
- let routine=0;const last3=r.slice(-3);const med=id=>{const v=last3.map(h=>h.steps&&h.steps[id]&&h.steps[id].dur).filter(Boolean);return v.length?median(v):DEF_DUR[id];};
+ let routine=0;const last3=timed().slice(-3);const med=id=>{const v=last3.map(h=>h.steps&&h.steps[id]&&h.steps[id].dur).filter(Boolean);return v.length?median(v):DEF_DUR[id];};
  TASKS.forEach(id=>{routine+=med(id);});
  const pill=60,buf=(+s.buffer||0)*60;const lt=leaveTs(base);
  const once=s.wakeOnce&&s.wakeOnce.date===dayKey(base)&&Date.now()<lt?s.wakeOnce.time:null;
@@ -429,7 +431,7 @@ function plan(){const r=real();const s=S.settings;let lie,why;const base=planBas
   const slack=(lt-wake)/1000-pill-routine-buf;if(lie===10&&slack<600){lie=5;why="Weckzeit ist fest – heute reicht die Zeit nur für 5 Minuten Liegezeit";}
   return{lie,why,routine,buf,wake,total:(lt-wake)/1000,estimated:last3.length===0,fixed:true,once:!!once,tomorrow};}
  // Freizeit vom letzten Tag: 70 % werden über die Routine-Zeiten zur späteren Weckzeit, 30 % bleiben als Extra-Puffer
- const lastR=r[r.length-1];const unused=lastR?(lastR.free!==undefined?(lastR.free||0):Math.max(0,(lastR.early||0)*60)):0;const keep=Math.round(unused*0.3/60)*60;
+ const lastR=timed().slice(-1)[0];const unused=lastR?(lastR.free!==undefined?(lastR.free||0):Math.max(0,(lastR.early||0)*60)):0;const keep=Math.round(unused*0.3/60)*60;
  const total=pill+lie*60+routine+buf+keep;const wake=lt-total*1000;
  return{lie,why,routine,buf,wake,total,estimated:last3.length===0,keep,tomorrow};}
 
@@ -446,9 +448,29 @@ function audioInit(){/* wird bei jedem Tippen aufgerufen */
  try{if(navigator.audioSession&&navigator.audioSession.type!=="playback")navigator.audioSession.type="playback";}catch(e){}
  silentUnlock();
  if(!A.ctx||A.ctx.state!=="running")newCtx();
+ keepAlive();unlockAlarmEl();A.gestured=true;
  if(!voiceUnlocked){voiceUnlocked=true;try{if("speechSynthesis"in window){const u=new SpeechSynthesisUtterance(" ");u.volume=0;speechSynthesis.speak(u);}}catch(e){}}
  loadClips();}
 addEventListener("pageshow",()=>{if(A.ctx&&A.ctx.state!=="running"){try{A.ctx.resume();}catch(e){}}});
+/* Jedes Antippen irgendwo schaltet den Ton frei (iOS verlangt eine Berührung) */
+["touchend","click"].forEach(ev=>document.addEventListener(ev,()=>{audioInit();if($("[data-act=unlock]"))render();},{capture:true,passive:true}));
+/* Hält die Audio-Ausgabe wach (iOS legt sie sonst nach einigen Minuten Stille schlafen – dann bliebe der Weckton stumm) */
+let kaSrc=null,kaCtx=null;
+function keepAlive(){if(!A.ctx||(kaSrc&&kaCtx===A.ctx))return;try{const b=A.ctx.createBuffer(1,A.ctx.sampleRate,A.ctx.sampleRate);const d=b.getChannelData(0);for(let i=0;i<d.length;i+=50)d[i]=0.00002;
+ const src=A.ctx.createBufferSource();src.buffer=b;src.loop=true;const g=A.ctx.createGain();g.gain.value=0.5;src.connect(g);g.connect(A.ctx.destination);src.start();kaSrc=src;kaCtx=A.ctx;}catch(e){}}
+setInterval(()=>{if(A.ctx&&A.ctx.state!=="running"&&S.run){try{A.ctx.resume();}catch(e){}}},5000);
+/* Weckton zusätzlich als eigenes Audio-Element: einmal bei einer Berührung freigeschaltet, darf es später von selbst losspielen */
+let alarmEl=null,alarmElReady=false,alarmUrl=null;
+function makeAlarmWav(){const sr=22050,secs=2.4,n=Math.floor(sr*secs),buf=new ArrayBuffer(44+n*2),v=new DataView(buf);
+ const ws=(o,t)=>{for(let i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i));};ws(0,"RIFF");v.setUint32(4,36+n*2,true);ws(8,"WAVEfmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);ws(36,"data");v.setUint32(40,n*2,true);
+ let ph=0;for(let i=0;i<n;i++){const t=i/sr;let f=0,sq=true;
+  if(t<.25)f=1046;else if(t>=.3&&t<.55)f=1568;else if(t>=.6&&t<1.4){f=700+(t-.6)/.8*1500;sq=false;}else if(t>=1.45&&t<1.95&&((t-1.45)%.12)<.06)f=2700;
+  let x=0;if(f){ph+=f/sr;ph-=Math.floor(ph);x=sq?(ph<.5?1:-1):(2*ph-1);}v.setInt16(44+i*2,Math.round(x*.92*32767),true);}
+ return URL.createObjectURL(new Blob([buf],{type:"audio/wav"}));}
+function unlockAlarmEl(){if(alarmElReady)return;try{if(!alarmEl){alarmEl=document.createElement("audio");alarmEl.setAttribute("playsinline","");alarmEl.preload="auto";}
+ alarmEl.loop=false;alarmEl.src=SILENT_WAV;const p=alarmEl.play();if(p&&p.then)p.then(()=>{alarmElReady=true;}).catch(()=>{});}catch(e){}}
+function alarmElPlay(){try{if(!alarmEl)return;if(!alarmUrl)alarmUrl=makeAlarmWav();alarmEl.src=alarmUrl;alarmEl.loop=true;alarmEl.currentTime=0;const p=alarmEl.play();if(p&&p.catch)p.catch(()=>{});}catch(e){}}
+function alarmElStop(){try{if(alarmEl){alarmEl.pause();alarmEl.loop=false;}}catch(e){}}
 const on=()=>A.ctx&&DEV.sound;
 function tone(f,t0,dur,type,vol,f2){const c=A.ctx,o=c.createOscillator(),g=c.createGain();o.type=type||"sine";o.frequency.setValueAtTime(f,t0);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t0+dur);
  g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(vol||.2,t0+.012);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);o.connect(g);g.connect(A.master);o.start(t0);o.stop(t0+dur+.05);}
@@ -488,7 +510,7 @@ function playClip(k,vol,raw){if(!on()||!clipBuf[k])return 0;const c=A.ctx,s=c.cr
 /* Weck-Alarm: ignoriert den Stumm-Knopf der App, wird mit der Zeit lauter, schriller und schneller */
 let parentAlertAt=0;
 let alarmT=null,alarmAt0=0,alarmSay=0,alarmGain=null;
-function alarmStart(){alarmStop();if(!A.ctx)return;alarmAt0=Date.now();alarmSay=Date.now();document.body.classList.add("alarming");
+function alarmStart(){alarmStop();alarmElPlay();if(!A.ctx)return;alarmAt0=Date.now();alarmSay=Date.now();document.body.classList.add("alarming");
  try{A.master.gain.setValueAtTime(1,A.ctx.currentTime);}catch(e){}
  const beat=()=>{if(!A.ctx)return;if(A.ctx.state!=="running"){try{A.ctx.resume();}catch(e){}}
   const el=(Date.now()-alarmAt0)/1000,t=A.ctx.currentTime,lv=Math.min(1,.45+el/40);
@@ -500,7 +522,7 @@ function alarmStart(){alarmStop();if(!A.ctx)return;alarmAt0=Date.now();alarmSay=
   if(el>35){for(let i=0;i<4;i++)tone(2700,t+.52+i*.07,.05,"square",.3);}
   if(Date.now()-alarmSay>12000){alarmSay=Date.now();radio(pick([KID()+"! Aufstehen! Sofort!",KID()+", raus aus dem Bett! Die Rakete wartet!","Alarm! Alarm! "+KID()+", aufstehen!"]));}};
  beat();alarmT=setInterval(beat,800);}
-function alarmStop(){if(alarmT){clearInterval(alarmT);alarmT=null;}document.body.classList.remove("alarming");try{if(A.master)A.master.gain.setValueAtTime(.7,A.ctx.currentTime);}catch(e){}}
+function alarmStop(){alarmElStop();if(alarmT){clearInterval(alarmT);alarmT=null;}document.body.classList.remove("alarming");try{if(A.master)A.master.gain.setValueAtTime(.7,A.ctx.currentTime);}catch(e){}}
 let deVoice=null;
 function pickVoice(){if(deVoice)return deVoice;try{const v=speechSynthesis.getVoices();deVoice=v.find(x=>/^de(-|_)DE/i.test(x.lang))||v.find(x=>/^de/i.test(x.lang))||null;}catch(e){}return deVoice;}
 try{if("speechSynthesis"in window)speechSynthesis.onvoiceschanged=()=>{deVoice=null;pickVoice();};}catch(e){}
@@ -688,7 +710,7 @@ function vMission(){const r=S.run;if(!r)return vHome();const steps=stepsDef();co
    ${extra}
    <button class="btn btn-go" data-act="next" ${can?"":"disabled"}>${ICON.check} Erledigt</button>`;}
  return`<div class="topbar"><div><div class="eyebrow">${r.practice?"Probelauf · ":""}Phase ${r.idx+1} von ${steps.length}</div><h2>${esc(st.title)}</h2></div><div class="row" style="gap:8px"><button class="iconbtn" data-act="sound" aria-label="Ton an oder aus">${DEV.sound?ICON.sound:ICON.mute}</button><button class="iconbtn" data-act="abort" aria-label="Mission abbrechen">${ICON.x}</button></div></div>
- ${!isMission()?`<div class="banner" style="background:#62e3ff1a;color:var(--cyan)">Eltern-Gerät · Live-Ansicht</div>`:(!A.ctx||A.ctx.state!=="running")?`<button class="banner btn-go" data-act="unlock" style="width:100%">Ton aktivieren – hier tippen</button>`:""}
+ ${!isMission()?`<div class="banner" style="background:#62e3ff1a;color:var(--cyan)">Eltern-Gerät · Live-Ansicht</div>`:(!A.gestured)?`<button class="banner btn-go" data-act="unlock" style="width:100%">Einmal irgendwo tippen – dann ist der Ton an</button>`:""}
  <div class="stages">${stages}</div>
  <div class="mc">${esc(st.mc)}</div>
  <div class="row between"><span class="muted">Start um <b class="mono">${esc(S.settings.leave)}</b></span><span class="mono" id="tl"></span></div>
@@ -743,7 +765,7 @@ async function startMission(){audioInit();if(pendingGap().length){const ok=await
 async function confirmMed1(){if(!await parentOk(S.settings.med1+" bestätigen",""+KID()+" hat die Tablette genommen."))return;
  const r=S.run,now=Date.now();r.start=now;r.steps.med1={dur:0,confirmed:true};r.idx=1;r.bedEnd=now+r.lie*60000;r.stepStart=now;save();SFX.done();render();
  radio("Zündung bestätigt. Du hast "+r.lie+" Minuten Liegezeit. Ich wecke dich.");if(isMission())toast("Lautstärke ganz hoch und Stummschalter aus – sonst hörst du den Alarm nicht!");}
-function startAlarm(){if(!isMission())return;const d=playClip("problem");if(d){setTimeout(()=>{if(S.run&&!S.run.upAt){alarmStart();radio("T minus null! "+KID()+", aufstehen!");}},d*1000+900);}else{alarmStart();radio("T minus null! "+KID()+", aufstehen! Die Rakete wartet.");}}
+function startAlarm(){if(!isMission())return;alarmStart();radio("T minus null! "+KID()+", aufstehen! Die Rakete wartet.");}
 function getUp(){const r=S.run,now=Date.now();alarmStop();
  r.upAt=now;r.steps.bed={dur:Math.round((now-r.stepStart)/1000),react:r.alarmAt?Math.round((now-r.alarmAt)/1000):0,early:!r.alarmAt};
  nextStep(true);}
@@ -831,6 +853,7 @@ function vReport(){const day=S.history[viewArg];if(!day)return vHome();
   <div class="row" style="justify-content:center"><span class="chip ${day.onTime?"good":"warn"}">Fertig um ${clock(day.done)}</span><span class="chip">Routine ${fmt(day.total)}</span>${day.free>=60?`<span class="chip good">Freizeit ${Math.round(day.free/60)} Min</span>`:""}${day.streak>=2?`<span class="chip gold">Serie ${day.streak}</span>`:""}</div>
  </section>
  ${!day.practice&&(day.lost>0||day.freezeUsed)&&!day.rescued&&viewArg===S.history.length-1?`<section class="panel stack" style="border-color:var(--warn)"><h3>${day.lost>0?"Serie von "+day.lost+" Tagen verloren":"Streak-Schutz verbraucht"}</h3><div class="muted" style="font-size:.9rem">War ${esc(KID())} krank oder gab es einen anderen guten Grund? Dann können Eltern die Serie retten.</div><button class="btn btn-cyan" data-act="rescue">Serie retten (Eltern)</button></section>`:""}
+ ${!day.practice?`<section class="panel row between" style="flex-wrap:nowrap"><span class="muted" style="font-size:.88rem;min-width:0">${day.ignoreTimes?"Die Zeiten dieses Tages zählen nicht für Geist, Bestzeiten und Weckzeit. Punkte und Serie bleiben.":"Lief etwas schief? Eltern können die Zeiten dieses Tages aus der Wertung nehmen."}</span><button class="btn btn-sm" style="flex:none" data-act="ignoretimes">${day.ignoreTimes?"Wieder werten":"Nicht werten"}</button></section>`:""}
  ${!day.practice?`<section class="panel streak-hero pop">${flame(48,day.streak>0)}<div><div class="mono" style="font-size:2.2rem;font-weight:700;line-height:1;color:${day.streak?"var(--orange)":"var(--muted)"}">${day.streak}</div><div class="eyebrow">${day.milestone?"Meilenstein erreicht!":day.freezeUsed?"Serie gerettet":"Tage-Serie"}</div></div></section>`:""}
  ${day.rankUp?`<div class="badge pop" style="border-color:var(--gold)"><div style="flex:none;width:56px">${insignia(day.rankUp).replace('width="150" height="150"','width="56" height="56"')}</div><div><div class="eyebrow">Beförderung</div><b style="font-size:1.15rem">${esc(RANKS[day.rankUp][1])}</b><div class="muted" style="font-size:.85rem">Neuer Rang erreicht!</div></div></div>`:""}
  ${(day.newBadges||[]).map(id=>{const b=BADGES.find(x=>x.id===id);return b?`<div class="badge pop"><div class="medal">${esc(b.m)}</div><div><div class="eyebrow">Neues Abzeichen</div><b>${esc(b.n)}</b><div class="muted" style="font-size:.85rem">${esc(b.d)}</div></div></div>`:"";}).join("")}
@@ -971,6 +994,7 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-act]
   case"psave":saveParent();break;
   case"rwadd":{const rw={id:"r"+Date.now(),name:"Neue Belohnung",per:"tag",streak:1,cost:0};$("#p-rw").insertAdjacentHTML("beforeend",rwRow(rw));break;}
   case"rwdel":t.closest(".rw").remove();break;
+  case"ignoretimes":{const day=S.history[viewArg];if(!day)break;if(!await parentOk(day.ignoreTimes?"Zeiten wieder werten":"Zeiten nicht werten",dayLabel(day.date)))break;day.ignoreTimes=!day.ignoreTimes;save();toast(day.ignoreTimes?"Zeiten von "+dayLabel(day.date)+" werden ignoriert":"Zeiten werden wieder gewertet");render();break;}
   case"pstreak":{const n=Math.max(0,parseInt($("#p-streak").value)||0);S.streak.count=n;S.streak.best=Math.max(S.streak.best,n);if(n&&!S.streak.start)S.streak.start=dayKey();if(!n)S.streak.start=null;S.gapDone=addDays(dayKey(),-1);save();SFX.coin();toast("Serie auf "+n+" Tage gesetzt");render();break;}
   case"rescue":{const day=S.history[viewArg];if(!day||day.rescued)break;if(!await parentOk("Serie retten",KID()+" war krank oder hatte einen guten Grund."))break;
    if(day.lost>0){S.streak.count=day.lost;S.streak.best=Math.max(S.streak.best,day.lost);day.streak=day.lost;day.lost=0;}else if(day.freezeUsed){S.streak.freezes=Math.min(FREEZE_MAX,S.streak.freezes+1);}
