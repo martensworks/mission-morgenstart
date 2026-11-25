@@ -416,7 +416,7 @@ async function askGap(){const days=pendingGap();if(!days.length||gapAsking)retur
 
 /* Plan: Liegezeit + Weckzeit (berechnet aus den letzten 3 echten Missionen) */
 function planBase(){const now=Date.now();return(now>leaveTs(now)||real().some(h=>h.date===dayKey(now)))?now+864e5:now;}
-function plan(){const r=real();const s=S.settings;let lie,why;const base=planBase();const tomorrow=base!==Date.now()&&dayKey(base)!==dayKey();
+function plan(){const r=timed();/* nicht gewertete Tage zählen auch nicht für die Bonus-Liegezeit */const s=S.settings;let lie,why;const base=planBase();const tomorrow=base!==Date.now()&&dayKey(base)!==dayKey();
  if(s.lieMode==="fix5"){lie=5;why="fest eingestellt";}
  else if(s.lieMode==="fix10"){lie=10;why="fest eingestellt";}
  else{const last=r[r.length-1];const ok3=r.slice(-3).filter(h=>h.onTime).length;
