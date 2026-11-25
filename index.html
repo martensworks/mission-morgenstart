@@ -100,6 +100,7 @@ h3{font-size:1.05rem}
 .tile.on{border-color:var(--good)}.tile.on .box{background:var(--good);border-color:var(--good);color:#032}
 .tile small{display:block;font-weight:400;color:var(--muted);font-size:.82rem}
 .alarm{animation:alarmbg .6s infinite alternate}
+body.alarming{animation:alarmbg .6s infinite alternate}
 @keyframes alarmbg{from{background:#3a0b14}to{background:#7a1a12}}
 table{width:100%;border-collapse:collapse;font-size:.92rem}
 th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
@@ -237,6 +238,7 @@ const FACTS=[
 const TIPS={
  toilet:"Tipp: Ohne Lesestoff geht's auf der Toilette schneller. Das Buch wartet!",
  teeth:"Tipp: Wenn die Zahnbürste nach 2 Minuten stoppt, direkt weiter zur nächsten Phase.",
+ face:"Tipp: Waschlappen schon abends bereitlegen – dann geht's ganz fix.",
  dress:"Tipp: Klamotten schon abends rauslegen – dann ist das Anziehen ein Kinderspiel.",
  breakfast:"Tipp: Das Buch erst nach dem Frühstück aufschlagen.",
  check:"Tipp: Brille und Watch abends immer an denselben Platz legen.",
@@ -252,19 +254,21 @@ const BADGES=[
  {id:"early10",n:"Frühstarter",d:"10 Minuten vor dem Start fertig",m:"10'"},
  {id:"honest3",n:"Ehrlich währt am längsten",d:"3-mal ehrlich zugegeben, abgelenkt gewesen zu sein",m:"E"},
 ];
-const DEF_DUR={toilet:180,teeth:180,dress:300,breakfast:900,check:120};
-const TASKS=["toilet","teeth","dress","breakfast","check"];
+const DEF_DUR={toilet:180,teeth:180,face:120,dress:300,breakfast:900,check:120};
+const TASKS=["toilet","teeth","face","dress","breakfast","check"];
 function stepsDef(){const s=S.settings;return[
  {id:"med1",kind:"med",title:"Zündung: "+s.med1,short:s.med1,mc:"Mission Control an "+KID()+": Zündsequenz bereit. Erste Tablette, bitte."},
  {id:"bed",kind:"bed",title:"Triebwerke vorglühen",short:"Liegezeit",mc:"Triebwerke glühen vor. Du darfst noch liegen bleiben."},
  {id:"toilet",kind:"task",title:"Toilette",short:"Toilette",mc:"Phase eins: Druckausgleich. Ab zur Toilette."},
  {id:"teeth",kind:"task",title:"Zähne putzen",short:"Zähne",mc:"Phase zwei: Zahnschild polieren. Zwei Minuten, die Zahnbürste zählt mit."},
+ ...(withFace()?[{id:"face",kind:"task",title:"Gesicht waschen",short:"Gesicht",mc:"Zwischenstopp: Hitzeschild kühlen. Gesicht waschen!"}]:[]),
  {id:"dress",kind:"task",title:"Anziehen",short:"Anziehen",mc:"Phase drei: Raumanzug anlegen."},
  {id:"breakfast",kind:"breakfast",title:"Frühstück + "+s.med2,short:"Frühstück",mc:"Phase vier: Treibstoff tanken. Und die zweite Tablette nicht vergessen."},
  ...(withFree()?[{id:"free",kind:"free",title:"Freizeit",short:"Freizeit",mc:"Alle Systeme bereit. Du hast Freizeit bis zum finalen Countdown!"}]:[]),
  {id:"check",kind:"check",title:withFree()?"Finaler Countdown":"Systemcheck",short:"Check",mc:withFree()?"T minus "+(+S.settings.finalMin||10)+" Minuten. Finaler Countdown: Systemcheck!":"Letzte Phase: Systemcheck vor dem Start."},
 ];}
-function withFree(){return S.run?S.run.v===2:true;}
+function withFree(){return S.run?S.run.v>=2:true;}
+function withFace(){return S.run?S.run.v>=3:true;}
 function finalTs(r){return leaveTs((r&&r.start)||Date.now())-(+S.settings.finalMin||10)*60000;}
 
 /* ============ Zustand & Speicher ============ */
@@ -481,9 +485,22 @@ function playClip(k,vol,raw){if(!on()||!clipBuf[k])return 0;const c=A.ctx,s=c.cr
  s.buffer=clipBuf[k];g.gain.value=vol||1;s.connect(hp);hp.connect(g);g.connect(A.master);if(raw){s.start(c.currentTime);return clipBuf[k].duration;}
  SFX.quindar(2525);s.start(c.currentTime+.3);
  setTimeout(()=>SFX.quindar(2475),300+clipBuf[k].duration*1000+80);return clipBuf[k].duration;}
-let alarmT=null;
-function alarmStart(){alarmStop();const beat=()=>{if(!on())return;const t=A.ctx.currentTime;tone(700,t,.3,"square",.2);tone(950,t+.36,.3,"square",.2);};beat();alarmT=setInterval(beat,850);}
-function alarmStop(){if(alarmT){clearInterval(alarmT);alarmT=null;}}
+/* Weck-Alarm: ignoriert den Stumm-Knopf der App, wird mit der Zeit lauter, schriller und schneller */
+let parentAlertAt=0;
+let alarmT=null,alarmAt0=0,alarmSay=0,alarmGain=null;
+function alarmStart(){alarmStop();if(!A.ctx)return;alarmAt0=Date.now();alarmSay=Date.now();document.body.classList.add("alarming");
+ try{A.master.gain.setValueAtTime(1,A.ctx.currentTime);}catch(e){}
+ const beat=()=>{if(!A.ctx)return;if(A.ctx.state!=="running"){try{A.ctx.resume();}catch(e){}}
+  const el=(Date.now()-alarmAt0)/1000,t=A.ctx.currentTime,lv=Math.min(1,.45+el/40);
+  // Stufe 1: Zweiklang
+  tone(1046,t,.22,"square",.28*lv);tone(1568,t+.25,.22,"square",.28*lv);
+  // Stufe 2 (ab 15 s): Sirene
+  if(el>15){tone(700,t,.5,"sawtooth",.22*lv,2200);}
+  // Stufe 3 (ab 35 s): schnelle, schrille Pulse
+  if(el>35){for(let i=0;i<4;i++)tone(2700,t+.52+i*.07,.05,"square",.3);}
+  if(Date.now()-alarmSay>12000){alarmSay=Date.now();radio(pick([KID()+"! Aufstehen! Sofort!",KID()+", raus aus dem Bett! Die Rakete wartet!","Alarm! Alarm! "+KID()+", aufstehen!"]));}};
+ beat();alarmT=setInterval(beat,800);}
+function alarmStop(){if(alarmT){clearInterval(alarmT);alarmT=null;}document.body.classList.remove("alarming");try{if(A.master)A.master.gain.setValueAtTime(.7,A.ctx.currentTime);}catch(e){}}
 let deVoice=null;
 function pickVoice(){if(deVoice)return deVoice;try{const v=speechSynthesis.getVoices();deVoice=v.find(x=>/^de(-|_)DE/i.test(x.lang))||v.find(x=>/^de/i.test(x.lang))||null;}catch(e){}return deVoice;}
 try{if("speechSynthesis"in window)speechSynthesis.onvoiceschanged=()=>{deVoice=null;pickVoice();};}catch(e){}
@@ -655,10 +672,10 @@ function vMission(){const r=S.run;if(!r)return vHome();const steps=stepsDef();co
    <div class="joke"><div>${esc(j[0])}</div><div class="punch">${esc(j[1])}</div></div>
    <button class="btn" data-act="freedone">Ich will schon jetzt los machen</button>`;}
  else if(st.kind==="bed"){const alarm=r.alarmAt&&!r.upAt;
-  body=alarm?`<div class="panel stack" style="text-align:center;border-color:var(--bad)"><div class="eyebrow" style="color:var(--bad)">T-0 · Alarm</div><h1>AUFSTEHEN!</h1><div class="countdown" id="react">0:00</div><p class="muted" style="margin:0">Die Uhr misst, wie schnell du auf den Beinen bist.</p></div>
+  body=alarm?`<div class="panel stack" style="text-align:center;border-color:var(--bad)"><div class="eyebrow" style="color:var(--bad)">T-0 · Alarm</div><h1>AUFSTEHEN!</h1><div class="countdown" id="react">0:00</div><p class="muted" style="margin:0">${isMission()?"Die Uhr misst, wie schnell du auf den Beinen bist.":"<b style='color:var(--bad)'>Weckhilfe: "+esc(KID())+" ist noch nicht aufgestanden.</b> Nach einer Minute meldet sich auch dieses Gerät."}</p></div>
    <button class="btn btn-go" data-act="up">Ich stehe!</button>`
   :`<div class="ringwrap">${ring()}<div class="center"><div class="eyebrow">Liegezeit</div><div class="t" id="tm">--:--</div><div class="muted" id="sub">${r.lie} Min${r.lie===10?" · Bonus":""}</div></div></div>
-   <div class="panel muted" style="font-size:.92rem">Bleib liegen und werd wach. Wenn der Countdown bei null ist, gibt's Alarm. <b>Lass die App offen</b>, sonst kann sie nicht klingeln.</div>
+   <div class="panel muted" style="font-size:.92rem">Bleib liegen und werd wach. Wenn der Countdown bei null ist, gibt's Alarm. <b>Lass die App offen</b>, sonst kann sie nicht klingeln.<br><b style="color:var(--warn)">Handy-Lautstärke ganz hoch, Stummschalter aus, Handy nicht unters Kissen.</b></div>
    <button class="btn" data-act="up">Ich bin schon auf</button>`;}
  else{const g=ghostFor(st.id),b=bestFor(st.id);
   let extra="";
@@ -694,7 +711,8 @@ function update(){const now=Date.now();
  if(st.kind==="bed"){
   if(!r.alarmAt){const left=(r.bedEnd-now)/1000;const tm=$("#tm");if(tm)tm.textContent=fmt(left);const arc=$("#arc");if(arc){arc.style.strokeDashoffset=C*(left/(r.lie*60));}
    if(left<=0){r.alarmAt=r.bedEnd;save();startAlarm();render();}}
-  else if(!r.upAt){const e=$("#react");if(e)e.textContent=fmt((now-r.alarmAt)/1000);}
+  else if(!r.upAt){const e=$("#react");if(e)e.textContent=fmt((now-r.alarmAt)/1000);
+   if(!isMission()&&now-r.alarmAt>60000&&now-parentAlertAt>30000){parentAlertAt=now;if(A.ctx){const t=A.ctx.currentTime;tone(880,t,.25,"square",.25);tone(660,t+.3,.25,"square",.25);tone(880,t+.6,.25,"square",.25);}toast("Weckhilfe: "+KID()+" ist seit "+fmt((now-r.alarmAt)/1000)+" nicht aufgestanden!");}}
   return;}
  if(st.kind==="med")return;
  if(st.kind==="free"){const ft=finalTs(r),left=(ft-now)/1000,tot=Math.max(1,(ft-r.stepStart)/1000);const tm=$("#tm");if(tm)tm.textContent=fmt(left);const arc=$("#arc");if(arc){arc.setAttribute("stroke","#5ff2a0");arc.style.strokeDashoffset=C*(1-Math.max(0,left)/tot);}
@@ -720,11 +738,11 @@ function update(){const now=Date.now();
 async function startMission(){audioInit();if(pendingGap().length){const ok=await askGap();if(!ok)return;}const doneToday=real().some(h=>h.date===dayKey());
  if(!S.settings.pin&&isMission()){const ok=await setupPin();if(!ok)return;}
  const p=plan();
- S.run={v:2,date:dayKey(),practice:doneToday,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};
+ S.run={v:3,date:dayKey(),practice:doneToday,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};
  save();keepAwake();go("mission");radio("Mission Control an "+KID()+". Guten Morgen! Zündsequenz bereit.");}
 async function confirmMed1(){if(!await parentOk(S.settings.med1+" bestätigen",""+KID()+" hat die Tablette genommen."))return;
  const r=S.run,now=Date.now();r.start=now;r.steps.med1={dur:0,confirmed:true};r.idx=1;r.bedEnd=now+r.lie*60000;r.stepStart=now;save();SFX.done();render();
- radio("Zündung bestätigt. Du hast "+r.lie+" Minuten Liegezeit. Ich wecke dich.");}
+ radio("Zündung bestätigt. Du hast "+r.lie+" Minuten Liegezeit. Ich wecke dich.");if(isMission())toast("Lautstärke ganz hoch und Stummschalter aus – sonst hörst du den Alarm nicht!");}
 function startAlarm(){if(!isMission())return;const d=playClip("problem");if(d){setTimeout(()=>{if(S.run&&!S.run.upAt){alarmStart();radio("T minus null! "+KID()+", aufstehen!");}},d*1000+900);}else{alarmStart();radio("T minus null! "+KID()+", aufstehen! Die Rakete wartet.");}}
 function getUp(){const r=S.run,now=Date.now();alarmStop();
  r.upAt=now;r.steps.bed={dur:Math.round((now-r.stepStart)/1000),react:r.alarmAt?Math.round((now-r.alarmAt)/1000):0,early:!r.alarmAt};
@@ -958,7 +976,7 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-act]
    if(day.lost>0){S.streak.count=day.lost;S.streak.best=Math.max(S.streak.best,day.lost);day.streak=day.lost;day.lost=0;}else if(day.freezeUsed){S.streak.freezes=Math.min(FREEZE_MAX,S.streak.freezes+1);}
    day.rescued=true;S.excused[day.date]="krank";save();SFX.fanfare();celebrate();toast("Serie gerettet: "+S.streak.count+" Tage");render();break;}
   case"pxp":{const n=parseInt($("#p-xp").value);if(!n)break;const before=rankLevel(S.xpTotal);S.xp=Math.max(0,S.xp+n);if(n>0)S.xpTotal+=n;save();render();toast((n>0?"+":"")+n+" XP gebucht");const after=rankLevel(S.xpTotal);if(after>before)rankWin(RANKS[after][1],after);break;}
-  case"practice":{saveParent();const p=plan();S.run={v:2,date:dayKey(),practice:true,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};save();keepAwake();go("mission");radio("Probelauf. Mission Control ist bereit.");break;}
+  case"practice":{saveParent();const p=plan();S.run={v:3,date:dayKey(),practice:true,idx:0,start:null,lie:p.lie,lieWhy:p.why,plannedWake:p.wake,steps:{},checks:{},med2:false,stepStart:Date.now(),hidden:0,alerts:0};save();keepAwake();go("mission");radio("Probelauf. Mission Control ist bereit.");break;}
   case"pin":if(await setupPin())render();break;
   case"wipe":{const ok=await modal(`<h2>Fortschritt zurücksetzen?</h2><p class="muted" style="margin:0">Logbuch, Punkte, Serie, Abzeichen und eingelöste Belohnungen werden auf allen Geräten gelöscht. Einstellungen und PIN bleiben.</p><button class="btn" data-v="0">Abbrechen</button><button class="btn" data-v="1" style="color:var(--bad)">Ja, alles löschen</button>`,(b,close)=>b.addEventListener("click",ev=>{const k=ev.target.closest("[data-v]");if(k)close(k.dataset.v==="1");}));
    if(ok){const keep=S.settings;S=fresh();S.settings=keep;migrate();save();go("home");toast("Fortschritt zurückgesetzt");}break;}
