@@ -305,12 +305,30 @@ function runPart(){return JSON.stringify(S.run||null);}
 function save(){S.updated=Date.now();if(S.history.length>90)S.history=S.history.slice(-90);
  try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}pushSync();}
 function pushSync(){if(!famRef)return;clearTimeout(pushT);pushT=setTimeout(()=>{if(!famRef)return;const m=mainPart(),r=runPart();
- if(m!==lastMain){lastMain=m;famRef.collection("data").doc("main").set({state:m,updated:Date.now(),by:uid}).catch(syncErr);}
+ if(m!==lastMain){lastMain=m;writeMain();}
  if(r!==lastRun){lastRun=r;famRef.collection("data").doc("run").set({state:r,updated:Date.now(),by:uid}).catch(syncErr);}},120);}
+/* Hauptstand per Transaktion schreiben: hat ein anderes Gerät inzwischen geschrieben, werden Missionen zusammengeführt statt überschrieben */
+let mainRev=0,mainBusy=false,mainAgain=false;
+function hkey(h){return h.date+"|"+(h.done||0)+"|"+(h.practice?1:0);}
+function mergeState(o,loc){o.history=o.history||[];const idx={};o.history.forEach(h=>idx[hkey(h)]=h);const added=[];
+ (loc.history||[]).forEach(h=>{const k=hkey(h);if(idx[k]){["ignoreTimes","rescued"].forEach(f=>{if(h[f]!==undefined&&h[f]!==idx[k][f])idx[k][f]=h[f];});}else{o.history.push(h);added.push(h);}});
+ if(added.length){o.history.sort((a,b)=>(a.done||0)-(b.done||0));added.forEach(h=>{if(!h.practice){o.xp=(o.xp||0)+(h.xp||0);o.xpTotal=(o.xpTotal||0)+(h.xp||0);}});
+  const lastAdded=Math.max(...added.map(h=>h.done||0));const lastSrv=Math.max(0,...o.history.filter(h=>!added.includes(h)).map(h=>h.done||0));if(lastAdded>=lastSrv&&loc.streak)o.streak=loc.streak;}
+ o.badges=Object.assign({},loc.badges||{},o.badges||{});o.excused=Object.assign({},loc.excused||{},o.excused||{});
+ o.redemptions=o.redemptions||[];const rk=x=>x.id+"|"+x.date+"|"+(x.cost||0);const have=new Set(o.redemptions.map(rk));(loc.redemptions||[]).forEach(x=>{if(!have.has(rk(x))){o.redemptions.push(x);o.xp=Math.max(0,(o.xp||0)-(x.cost||0));}});
+ return o;}
+async function writeMain(){if(!famRef||!fdb)return;if(mainBusy){mainAgain=true;return;}mainBusy=true;const ref=famRef.collection("data").doc("main");let applied=null;
+ try{await fdb.runTransaction(async tx=>{applied=null;const sn=await tx.get(ref);const srv=sn.exists?sn.data():null;const srvRev=(srv&&srv.rev)||0;let json=mainPart();
+   if(srv&&srv.state&&srvRev!==mainRev&&srv.state!==json){const merged=mergeState(JSON.parse(srv.state),JSON.parse(json));json=JSON.stringify(merged);applied=merged;}
+   tx.set(ref,{state:json,updated:Date.now(),by:uid,rev:srvRev+1});mainRev=srvRev+1;lastMain=json;});
+  if(applied){const run=S.run;S=Object.assign(fresh(),applied);S.run=run;migrate();try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}if(view!=="parent")render();}
+  if(navigator.onLine!==false){syncState="ok";updateSyncDot();}}
+ catch(e){lastMain=null;if(e&&(e.code==="unavailable"||e.code==="failed-precondition"||navigator.onLine===false)){syncState="offline";updateSyncDot();}else syncErr(e);}
+ mainBusy=false;if(mainAgain){mainAgain=false;writeMain();}}
 function syncErr(e){console.warn(e);syncState="error";updateSyncDot();}
 function updateSyncDot(){document.querySelectorAll(".sync").forEach(el=>{el.className="sync "+syncState;});}
 addEventListener("offline",()=>{syncState="offline";updateSyncDot();});
-addEventListener("online",()=>{if(famRef){syncState="ok";updateSyncDot();}});
+addEventListener("online",()=>{if(famRef){syncState="ok";updateSyncDot();pushSync();}});
 async function initSync(){
  if(!window.firebase){syncState="error";render();return;}
  try{firebase.initializeApp(FB_CONFIG);fdb=firebase.firestore();fauth=firebase.auth();
@@ -324,7 +342,7 @@ function connectFamily(id){unsubs.forEach(u=>u());unsubs=[];famRef=fdb.collectio
    const me=FAM.members[uid];if(me.role&&me.role!==DEV.role){DEV.role=me.role;saveDev();render();}
    syncState=navigator.onLine===false?"offline":"ok";updateSyncDot();if(view==="devices")render();},
   e=>{syncErr(e);if(e&&e.code==="permission-denied")leaveLocal("Kein Zugriff auf die Familie. Bitte das Gerät neu koppeln.");}));
- unsubs.push(famRef.collection("data").doc("main").onSnapshot(sn=>{if(!sn.exists){lastMain=null;pushSync();return;}const d=sn.data();if(!d||d.state===lastMain)return;lastMain=d.state;applyMain(JSON.parse(d.state));},syncErr));
+ unsubs.push(famRef.collection("data").doc("main").onSnapshot(sn=>{if(!sn.exists){lastMain=null;pushSync();return;}const d=sn.data();if(!d)return;mainRev=d.rev||0;if(d.state===lastMain)return;lastMain=d.state;applyMain(JSON.parse(d.state));},syncErr));
  unsubs.push(famRef.collection("data").doc("run").onSnapshot(sn=>{const st=sn.exists&&sn.data()?sn.data().state:"null";if(st===lastRun)return;lastRun=st;applyRun(JSON.parse(st));},syncErr));}
 function applyMain(o){const run=S.run;S=Object.assign(fresh(),o);S.run=run;migrate();try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}if(view!=="parent")render();}
 function applyRun(r){const prev=S.run;S.run=r;try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}
@@ -652,10 +670,11 @@ function render(){clearInterval(tick);tick=null;const app=$("#app");
  if(view==="home"||view==="mission"){tick=setInterval(()=>update(),250);update();}
  if(view==="home"&&!S.run){const g=pendingGap();const key=dayKey()+":"+g.join(",");if(g.length&&gapAskedFor!==key&&$("#modal").hidden){gapAskedFor=key;setTimeout(()=>{if(view==="home"&&$("#modal").hidden)askGap();},500);}}}
 
-function vHome(){const p=plan();const rk=rankOf(S.xpTotal);const st=S.streak.count;
+function updBanner(){return updateWaiting?`<button class="banner btn-cyan" data-act="doupdate" style="width:100%">Neue Version verfügbar – ${S.run?"wird nach der Mission geladen":"jetzt aktualisieren"}</button>`:"";}
+function vHome(){const p=plan();const rk=rankOf(S.xpTotal);const st=S.streak.count;const UB=updBanner();
  const prog=rk.next?Math.round((S.xpTotal-rk.min)/(rk.next[0]-rk.min)*100):100;
  const doneToday=real().some(h=>h.date===dayKey());
- return header()+`
+ return header()+UB+`
  <section class="panel stack">
   <div class="eyebrow">Nächster Start · ${esc(S.settings.leave)} Uhr</div>
   <div class="countdown" id="cd">--:--</div>
@@ -859,9 +878,9 @@ function vReport(){const day=S.history[viewArg];if(!day)return vHome();
  ${(day.newBadges||[]).map(id=>{const b=BADGES.find(x=>x.id===id);return b?`<div class="badge pop"><div class="medal">${esc(b.m)}</div><div><div class="eyebrow">Neues Abzeichen</div><b>${esc(b.n)}</b><div class="muted" style="font-size:.85rem">${esc(b.d)}</div></div></div>`:"";}).join("")}
  <section class="panel stack"><h3>So lief's</h3>${day.insights.map(([k,t])=>`<div class="row" style="align-items:flex-start;flex-wrap:nowrap"><span class="chip ${k}" style="flex:none">${k==="good"?"Top":"Hinweis"}</span><span style="min-width:0">${esc(t)}</span></div>`).join("")}</section>
  <section class="panel"><h3 style="margin-bottom:6px">Du gegen gestern</h3><div style="overflow-x:auto"><table><thead><tr><th>Phase</th><th class="n">Heute</th><th class="n">Gestern</th><th class="n">Diff</th></tr></thead><tbody>${rows}</tbody></table></div></section>
- <section class="panel stack"><div class="row between"><h3>Flugplan morgen</h3>${day.next.lie===10?'<span class="chip gold">Bonus-Liegezeit</span>':""}</div>
+ ${day.next?`<section class="panel stack"><div class="row between"><h3>Flugplan morgen</h3>${day.next&&day.next.lie===10?'<span class="chip gold">Bonus-Liegezeit</span>':""}</div>
   <div class="kv"><div><div class="v">${clock(day.next.wake)}</div><div class="k">Wecken</div></div><div><div class="v">${day.next.lie} Min</div><div class="k">Liegezeit</div></div><div><div class="v">${esc(day.leave)}</div><div class="k">Start</div></div></div>
-  <div class="muted" style="font-size:.9rem">${esc(day.next.why)}</div></section>
+  <div class="muted" style="font-size:.9rem">${esc(day.next.why)}</div></section>`:""}
  <section class="panel stack"><h3>Punkte</h3>${day.items.map(([n,t])=>`<div class="row between" style="flex-wrap:nowrap"><span style="min-width:0">${esc(t)}</span><b class="mono" style="color:var(--gold)">+${n}</b></div>`).join("")}</section>
  <div class="joke"><div class="eyebrow" style="font-style:normal;margin-bottom:6px">Witz des Tages</div><div>${esc(day.joke[0])}</div><div class="punch">${esc(day.joke[1])}</div></div>
  <button class="btn btn-cyan" data-act="home">Zurück zur Basis</button>`;}
@@ -937,7 +956,10 @@ function vParent(){const s=S.settings;
   <div class="f"><span class="muted" style="font-size:.88rem">Schultage – nur an diesen Tagen fragt die App nach, wenn keine Mission war</span><div class="row" style="gap:8px">${[1,2,3,4,5,6,0].map(d=>`<label class="row" style="gap:4px;font-size:.9rem"><input type="checkbox" class="p-sd" value="${d}" ${S.settings.schoolDays.includes(d)?"checked":""} style="width:20px;min-height:0">${["So","Mo","Di","Mi","Do","Fr","Sa"][d]}</label>`).join("")}</div><div class="muted" style="font-size:.8rem">Wird mit „Einstellungen speichern“ übernommen.</div></div></section>
  <section class="panel stack"><h3>Punkte</h3><div class="row" style="flex-wrap:nowrap"><input type="number" id="p-xp" placeholder="z. B. 20 oder -20" style="flex:1"><button class="btn btn-sm" data-act="pxp">Buchen</button></div><div class="muted" style="font-size:.85rem">Aktuell ${S.xp} XP zum Einlösen, ${S.xpTotal} XP gesamt.</div></section>
  <section class="panel stack"><h3>Werkzeuge</h3>
-  <button class="btn" data-act="practice">Probelauf starten (zählt nicht)</button>
+  <button class="btn" data-act="practice">Probelauf starten (zählt nicht)</button></section>
+ <section class="panel stack"><h3>Mission nachtragen</h3><div class="muted" style="font-size:.88rem">Für Tage, an denen die App nicht lief. Zählt für Serie und Punkte (80 XP pünktlich, 40 XP zu spät), nicht für Zeiten, Geist oder Weckzeit.</div>
+  <div class="grid2"><label class="f">Datum<input type="date" id="p-mdate" value="${addDays(dayKey(),-1)}"></label><label class="f">Ergebnis<select id="p-mres"><option value="1">pünktlich</option><option value="0">zu spät</option></select></label></div>
+  <button class="btn btn-sm" data-act="addmission">Nachtragen</button>
   <button class="btn" data-act="devices">Geräte &amp; Familie</button></section>
  <section class="panel stack"><h3>Effekte testen</h3><div class="grid2">
   <button class="btn btn-sm" data-act="pv" data-k="ghost">Geist geschlagen</button><button class="btn btn-sm" data-act="pv" data-k="pb">Neue Bestzeit</button>
@@ -995,6 +1017,15 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-act]
   case"rwadd":{const rw={id:"r"+Date.now(),name:"Neue Belohnung",per:"tag",streak:1,cost:0};$("#p-rw").insertAdjacentHTML("beforeend",rwRow(rw));break;}
   case"rwdel":t.closest(".rw").remove();break;
   case"ignoretimes":{const day=S.history[viewArg];if(!day)break;if(!await parentOk(day.ignoreTimes?"Zeiten wieder werten":"Zeiten nicht werten",dayLabel(day.date)))break;day.ignoreTimes=!day.ignoreTimes;save();toast(day.ignoreTimes?"Zeiten von "+dayLabel(day.date)+" werden ignoriert":"Zeiten werden wieder gewertet");render();break;}
+  case"doupdate":if(!S.run){try{sessionStorage.removeItem("mm-upd");}catch(e){}location.replace(location.pathname+"?v="+encodeURIComponent(updateWaiting||Date.now()));}break;
+  case"addmission":{const d=$("#p-mdate").value;const ok1=$("#p-mres").value==="1";if(!d){toast("Bitte ein Datum wählen");break;}
+   if(real().some(h=>h.date===d)){toast("Für diesen Tag gibt es schon eine Mission");break;}if(d>dayKey()){toast("Das Datum liegt in der Zukunft");break;}
+   const[y,mo,dd]=d.split("-").map(Number);const done=new Date(y,mo-1,dd,7,ok1?10:25).getTime();const xp=ok1?80:40;
+   const lastBefore=real().slice(-1)[0];const entry={date:d,practice:false,manual:true,ignoreTimes:true,onTime:ok1,early:ok1?10:-5,steps:{},done,total:0,leave:S.settings.leave,xp,items:[[xp,"Nachgetragen von den Eltern"]],insights:[["good","Diese Mission wurde nachgetragen. Sie zählt für Serie und Punkte, nicht für Zeiten."]],joke:pick(JOKES),newBadges:[],next:null};
+   const before=rankLevel(S.xpTotal);
+   if(!lastBefore||d>lastBefore.date){if(ok1){if(!S.streak.count)S.streak.start=d;S.streak.count++;S.streak.best=Math.max(S.streak.best,S.streak.count);}else if(S.streak.freezes>0){S.streak.freezes--;entry.freezeUsed=true;}else{entry.lost=S.streak.count;S.streak.count=0;S.streak.start=null;}}
+   entry.streak=S.streak.count;S.history.push(entry);S.history.sort((a,b)=>(a.done||0)-(b.done||0));S.xp+=xp;S.xpTotal+=xp;if(S.gapDone&&S.gapDone<d)S.gapDone=d;
+   save();SFX.coin();toast("Mission vom "+dayLabel(d)+" nachgetragen (+"+xp+" XP)");const after=rankLevel(S.xpTotal);render();if(after>before)rankWin(RANKS[after][1],after);break;}
   case"pstreak":{const n=Math.max(0,parseInt($("#p-streak").value)||0);S.streak.count=n;S.streak.best=Math.max(S.streak.best,n);if(n&&!S.streak.start)S.streak.start=dayKey();if(!n)S.streak.start=null;S.gapDone=addDays(dayKey(),-1);save();SFX.coin();toast("Serie auf "+n+" Tage gesetzt");render();break;}
   case"rescue":{const day=S.history[viewArg];if(!day||day.rescued)break;if(!await parentOk("Serie retten",KID()+" war krank oder hatte einen guten Grund."))break;
    if(day.lost>0){S.streak.count=day.lost;S.streak.best=Math.max(S.streak.best,day.lost);day.streak=day.lost;day.lost=0;}else if(day.freezeUsed){S.streak.freezes=Math.min(FREEZE_MAX,S.streak.freezes+1);}
@@ -1011,7 +1042,15 @@ document.addEventListener("visibilitychange",()=>{const r=S.run;if(!r||!isMissio
   if(A.ctx&&A.ctx.state!=="running")A.ctx.resume();
   if(r.idx===1&&!r.upAt&&now>=r.bedEnd){if(!r.alarmAt){r.alarmAt=r.bedEnd;save();}startAlarm();render();}}});
 if(S.run&&S.run.idx===1&&S.run.alarmAt&&!S.run.upAt){/* Alarm läuft nach Neuladen weiter, sobald getippt wird */}
-render();initSync();
+/* Beim Öffnen prüfen, ob eine neuere Version online ist */
+const APP_VERSION="2026-11-25c";let updateWaiting=null;
+try{if(/[?&]v=/.test(location.search))history.replaceState(null,"",location.pathname);}catch(e){}
+async function checkVersion(){try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(!j.v||j.v===APP_VERSION)return;
+  let tried=null;try{tried=sessionStorage.getItem("mm-upd");}catch(e){}
+  if(S.run||tried===j.v){updateWaiting=j.v;render();return;}
+  try{sessionStorage.setItem("mm-upd",j.v);}catch(e){}location.replace(location.pathname+"?v="+encodeURIComponent(j.v));}catch(e){}}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!S.run)checkVersion();});
+render();initSync();checkVersion();
 </script>
 </body>
 </html>
